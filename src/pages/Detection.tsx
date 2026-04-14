@@ -1,153 +1,313 @@
-import { useState, useMemo } from 'react';
-import { motion } from 'framer-motion';
-import { CheckCircle2, Search, ArrowRight, Server, Terminal, Braces } from 'lucide-react';
-import { LineChart, Line, ResponsiveContainer, YAxis } from 'recharts';
+import { useState, useMemo, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { CheckCircle2, XCircle, Search, Server, Terminal, Braces, Activity, Zap, ShieldCheck, ChevronRight } from 'lucide-react';
+import { LineChart, Line, ResponsiveContainer } from 'recharts';
 import { useStore } from '../store';
 import { format } from 'date-fns';
 
-const ModelStatusCard = ({ name, accuracy, date }: { name: string, accuracy: number, date: string }) => (
-  <div className="bg-card border border-border-subtle rounded-lg p-5 flex flex-col shadow-lg">
-    <div className="flex justify-between items-center mb-3">
-      <h3 className="font-heading font-semibold text-white text-lg">{name}</h3>
-      <span className="bg-teal-accent/20 text-teal-accent text-xs px-2 py-1 rounded font-bold flex items-center">
-        <CheckCircle2 className="w-3 h-3 mr-1" /> ACTIVE
-      </span>
-    </div>
-    <div className="flex justify-between items-end mt-auto">
-      <div>
-        <p className="text-xs text-text-muted uppercase tracking-wider mb-1">Accuracy</p>
-        <p className="font-mono text-2xl font-bold text-teal-accent">{accuracy}%</p>
-      </div>
-      <div className="text-right">
-        <p className="text-xs text-text-muted uppercase tracking-wider mb-1">Last Trained</p>
-        <p className="font-mono text-xs">{date}</p>
-      </div>
-    </div>
-  </div>
-);
+const ModelStatusCard = ({ name, id, accuracy, date, enabled }: { name: string, id: string, accuracy: number, date: string, enabled: boolean }) => {
+  const [latency, setLatency] = useState(Math.random() * 20 + 5);
+  
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setLatency(prev => Math.max(2, Math.min(100, prev + (Math.random() * 10 - 5))));
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
 
-const ThreatSparkline = ({ title, count, data, color }: { title: string, count: number, data: { value: number }[], color: string }) => (
-  <div className="bg-secondary-card rounded-lg p-4 flex items-center justify-between shadow-lg">
-    <div className="w-1/2">
-      <p className="text-xs text-text-muted font-heading uppercase mb-1">{title}</p>
-      <p className="font-mono text-2xl font-bold text-white">{count}</p>
+  return (
+    <div className={`bg-card border ${enabled ? 'border-border-subtle hover:border-teal-accent/50' : 'border-red-500/30 opacity-60'} rounded-lg p-5 flex flex-col shadow-lg transition-all duration-500 relative overflow-hidden group`}>
+      {enabled && (
+        <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-teal-accent/50 to-transparent group-hover:via-teal-accent animate-pulse" />
+      )}
+      <div className="flex justify-between items-start mb-4">
+        <div>
+          <h3 className="font-heading font-semibold text-white text-lg group-hover:text-teal-accent transition-colors duration-300">{name}</h3>
+          <p className="text-[9px] text-text-muted uppercase tracking-[0.2em] font-mono">NODE_HASH: {id}</p>
+        </div>
+        <span className={`px-2 py-1 rounded text-[10px] font-bold flex items-center transition-colors duration-300 ${enabled ? 'bg-teal-accent/20 text-teal-accent shadow-[0_0_10px_rgba(45,212,191,0.2)]' : 'bg-red-500/20 text-red-400'}`}>
+          {enabled ? <CheckCircle2 className="w-3 h-3 mr-1" /> : <XCircle className="w-3 h-3 mr-1" />} 
+          {enabled ? 'OPERATIONAL' : 'DECOMMISSIONED'}
+        </span>
+      </div>
+      
+      <div className="grid grid-cols-2 gap-4 mt-auto">
+        <div>
+          <p className="text-[10px] text-text-muted uppercase tracking-wider mb-0.5 font-heading">Accuracy</p>
+          <div className="flex items-baseline">
+            <p className={`font-mono text-2xl font-bold ${enabled ? 'text-teal-accent' : 'text-text-muted'}`}>{enabled ? accuracy : '0.0'}%</p>
+            {enabled && <Activity className="w-3 h-3 ml-2 text-teal-accent/40 animate-pulse" />}
+          </div>
+        </div>
+        <div className="text-right">
+          <p className="text-[10px] text-text-muted uppercase tracking-wider mb-0.5 font-heading">Latency</p>
+          <p className="font-mono text-lg font-bold text-white">{enabled ? latency.toFixed(1) : '--'}ms</p>
+        </div>
+      </div>
+
+      <div className="mt-4 pt-4 border-t border-border-subtle/30 flex justify-between items-center text-[9px] font-mono">
+        <span className="text-text-muted">SYNC_TS: {date}</span>
+        {enabled && (
+          <div className="flex gap-1.5 h-3 items-end">
+             {[0, 1, 2].map(i => (
+               <motion.div 
+                 key={i}
+                 animate={{ scaleY: [1, 2, 1], opacity: [0.3, 1, 0.3] }}
+                 transition={{ repeat: Infinity, duration: 1, delay: i * 0.2 }}
+                 className="w-1 bg-teal-accent/50 rounded-full h-2"
+               />
+             ))}
+          </div>
+        )}
+      </div>
     </div>
-    <div className="w-1/2 h-12">
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data}>
-          <YAxis domain={['dataMin', 'dataMax']} hide />
-          <Line type="monotone" dataKey="value" stroke={color} strokeWidth={2} dot={false} isAnimationActive={false} />
-        </LineChart>
-      </ResponsiveContainer>
+  );
+};
+
+const ThreatSparkline = ({ title, type, color }: { title: string, type: string, color: string }) => {
+  const { incidents } = useStore();
+  const relevantIncidents = useMemo(() => incidents.filter(i => i.type === type), [incidents, type]);
+  const count = relevantIncidents.length;
+
+  const chartData = useMemo(() => {
+    const now = new Date();
+    return Array.from({ length: 20 }).map((_, i) => {
+      const windowStart = new Date(now.getTime() - (20 - i) * 60000);
+      const windowEnd = new Date(now.getTime() - (19 - i) * 60000);
+      return { time: i, value: relevantIncidents.filter(inc => {
+        const incTime = new Date(inc.timestamp);
+        return incTime >= windowStart && incTime < windowEnd;
+      }).length };
+    });
+  }, [relevantIncidents]);
+
+  const hasNewAlert = useMemo(() => {
+    if (relevantIncidents.length === 0) return false;
+    return (new Date().getTime() - new Date(relevantIncidents[0].timestamp).getTime()) < 10000;
+  }, [relevantIncidents]);
+
+  return (
+    <div className="bg-secondary-card rounded-lg p-4 flex items-center justify-between shadow-lg border border-border-subtle hover:border-white/10 transition-all relative group overflow-hidden">
+      {hasNewAlert && (
+        <motion.div 
+          animate={{ opacity: [0, 0.2, 0] }}
+          transition={{ repeat: Infinity, duration: 0.8 }}
+          className="absolute inset-0 z-0 pointer-events-none"
+          style={{ backgroundColor: color }}
+        />
+      )}
+      <div className="w-1/2 relative z-10">
+        <div className="flex items-center gap-2 mb-1">
+          <p className="text-[9px] text-text-muted font-heading uppercase tracking-[0.2em]">{title}</p>
+          {hasNewAlert && <Zap className="w-3 h-3 text-yellow-500 animate-[bounce_0.5s_infinite]" />}
+        </div>
+        <div className="flex items-baseline gap-2">
+          <p className="font-mono text-3xl font-bold text-white shadow-text">{count}</p>
+          <span className="text-[9px] text-text-muted font-mono">EVT</span>
+        </div>
+      </div>
+      <div className="w-1/2 h-14 relative z-10">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={chartData}>
+            <Line type="monotone" dataKey="value" stroke={color} strokeWidth={3} dot={false} isAnimationActive={true} />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 export const Detection = () => {
-  const { rawLogs, incidents } = useStore();
+  const { rawLogs, incidents, settings } = useStore();
   const [activeTab, setActiveTab] = useState<'network' | 'endpoint' | 'application'>('network');
+  const [selectedLogId, setSelectedLogId] = useState<string | null>(null);
 
   const filteredLogs = useMemo(() => rawLogs.filter(l => l.layer === activeTab).slice(0, 15), [rawLogs, activeTab]);
   const normalizedLogs = useMemo(() => filteredLogs.slice().reverse(), [filteredLogs]);
 
-  // Generate some fake historical data for the sparklines based on current counts
-  const generateSparkData = (baseCount: number) => {
-    return Array.from({length: 20}).map((_, i) => ({ value: Math.max(0, baseCount + Math.floor(Math.random() * 10 - 5)) + i }));
-  };
-
-  const getIncCount = (type: string) => incidents.filter(i => i.type === type).length;
-
   return (
-    <div className="space-y-6 flex flex-col h-full">
-      <h1 className="text-2xl font-heading font-bold text-white flex items-center">
-        <Search className="mr-3 text-teal-accent" /> AI Detection Engine
-      </h1>
+    <div className="space-y-6 flex flex-col h-full overflow-hidden p-6 bg-background/50">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-heading font-bold text-white flex items-center">
+            <Search className="mr-3 text-teal-accent" /> AI Detection Engine
+          </h1>
+          <p className="text-xs text-text-muted mt-1 font-mono tracking-wider ml-10">CORE_MODULE: V3.2.0 | REALTIME_ANALYTICS_ON</p>
+        </div>
+        <div className="flex items-center gap-4 bg-black/40 px-5 py-2.5 rounded-full border border-border-subtle backdrop-blur-md shadow-2xl">
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <div className="w-2.5 h-2.5 rounded-full bg-teal-accent" />
+              <div className="absolute inset-0 w-2.5 h-2.5 rounded-full bg-teal-accent animate-ping opacity-75" />
+            </div>
+            <span className="text-[10px] font-mono text-teal-accent font-bold uppercase tracking-[0.2em]">Data Hook Active</span>
+          </div>
+          <div className="h-5 w-px bg-border-subtle" />
+          <div className="text-[10px] font-mono whitespace-nowrap">
+            <span className="text-text-muted mr-2">THROUGHPUT:</span>
+            <span className="text-white font-bold">{Math.floor(Math.random() * 50 + 200)} KB/s</span>
+          </div>
+        </div>
+      </div>
 
       {/* Model Status Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <ModelStatusCard name="Isolation Forest" accuracy={94.2} date={format(new Date(), "yyyy-MM-dd 02:00")} />
-        <ModelStatusCard name="XGBoost Classifier" accuracy={96.8} date={format(new Date(), "yyyy-MM-dd 03:30")} />
-        <ModelStatusCard name="LSTM Time-Series" accuracy={91.5} date={format(new Date(), "yyyy-MM-dd 01:15")} />
+        <ModelStatusCard name="Isolation Forest" id="NODE_01_IF" accuracy={94.2} date={format(new Date(), "MM-dd HH:mm")} enabled={settings.models.isolationForest} />
+        <ModelStatusCard name="XGBoost Classifier" id="NODE_02_XG" accuracy={96.8} date={format(new Date(), "MM-dd HH:mm")} enabled={settings.models.xgboost} />
+        <ModelStatusCard name="LSTM Time-Series" id="NODE_03_LS" accuracy={91.5} date={format(new Date(), "MM-dd HH:mm")} enabled={settings.models.lstm} />
       </div>
 
       {/* Threat Categories Breakdown */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <ThreatSparkline title="Brute Force" count={getIncCount('brute_force')} data={generateSparkData(getIncCount('brute_force') || 5)} color="#FF4C4C" />
-        <ThreatSparkline title="Lateral Movement" count={getIncCount('lateral_movement')} data={generateSparkData(getIncCount('lateral_movement') || 3)} color="#FF8C42" />
-        <ThreatSparkline title="Data Exfiltration" count={getIncCount('exfiltration')} data={generateSparkData(getIncCount('exfiltration') || 2)} color="#1E90FF" />
-        <ThreatSparkline title="C2 Beaconing" count={getIncCount('c2_beacon')} data={generateSparkData(getIncCount('c2_beacon') || 8)} color="#7B5EA7" />
+        <ThreatSparkline title="Brute Force" type="brute_force" color="#FF5555" />
+        <ThreatSparkline title="Lateral Movement" type="lateral_movement" color="#FFB86C" />
+        <ThreatSparkline title="Data Exfiltration" type="exfiltration" color="#8BE9FD" />
+        <ThreatSparkline title="C2 Beaconing" type="c2_beacon" color="#BD93F9" />
       </div>
 
       {/* Real-time Log Ingestion */}
-      <div className="border border-border-subtle rounded-lg bg-card shadow-lg flex-1 flex flex-col min-h-[400px]">
-        <div className="flex border-b border-border-subtle bg-secondary-card p-2">
-          {['network', 'endpoint', 'application'].map(tab => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab as 'network' | 'endpoint' | 'application')}
-              className={`px-6 py-2 text-xs font-mono font-bold uppercase transition-colors rounded ${
-                activeTab === tab 
-                  ? 'bg-teal-accent/20 text-teal-accent' 
-                  : 'text-text-muted hover:text-white hover:bg-background/50'
-              }`}
-            >
-              <Server className="w-4 h-4 inline-block mr-2 -mt-0.5" />
-              {tab} Layer
-            </button>
-          ))}
+      <div className="border border-border-subtle rounded-xl bg-card/60 backdrop-blur-xl shadow-[0_30px_60px_rgba(0,0,0,0.5)] flex-1 flex flex-col min-h-[450px] overflow-hidden group">
+        <div className="flex justify-between items-center border-b border-white/5 bg-secondary-card/80 px-4 py-3">
+          <div className="flex items-center gap-1 bg-black/40 p-1 rounded-lg border border-white/5">
+            {['network', 'endpoint', 'application'].map(tab => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab as any)}
+                className={`px-6 py-2 text-[10px] font-mono font-bold uppercase transition-all duration-300 rounded-md flex items-center gap-2 ${
+                  activeTab === tab 
+                    ? 'bg-teal-accent text-black shadow-[0_0_20px_rgba(45,212,191,0.5)] scale-[1.02]' 
+                    : 'text-text-muted hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <Server className={`w-3.5 h-3.5 ${activeTab === tab ? 'animate-pulse' : ''}`} />
+                {tab}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-5 text-[10px] font-mono text-text-muted pr-2">
+            <span className="flex items-center gap-2 transition-all hover:text-teal-accent"><ShieldCheck className="w-3.5 h-3.5" /> Normalizing...</span>
+            <span className="flex items-center gap-2 transition-all hover:text-teal-accent"><Terminal className="w-3.5 h-3.5" /> Hooked</span>
+          </div>
         </div>
 
         <div className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
           
-          {/* Divider */}
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 hidden lg:flex flex-col items-center justify-center p-3 rounded-full bg-card border border-border-subtle shadow-[0_0_20px_rgba(0,0,0,0.5)]">
-            <ArrowRight className="w-6 h-6 text-teal-accent animate-pulse" />
-          </div>
-
-          {/* Left Side: RAW LOG */}
-          <div className="flex-1 border-b lg:border-b-0 lg:border-r border-border-subtle bg-black p-4 font-mono text-sm overflow-hidden relative group">
-            <h4 className="absolute top-4 right-4 text-[#006400] text-xs uppercase flex items-center pointer-events-none">
-              <Terminal className="w-4 h-4 mr-1" /> RAW INPUT
-            </h4>
-            <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent pointer-events-none z-10" />
-            <div className="h-full flex flex-col justify-end text-[#00ff00] opacity-80 overflow-y-hidden">
-              {normalizedLogs.map((log) => (
-                <motion.div 
-                  key={"raw-"+log.id}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className="mb-1 break-all"
-                >
-                  {log.raw}
-                </motion.div>
-              ))}
+          {/* Data Synapse Animation (Flowing Particles) */}
+          <div className="absolute left-1/2 top-0 bottom-0 w-px bg-white/5 z-20 hidden lg:block overflow-hidden">
+            {[1,2,3,4,5].map(i => (
+              <motion.div
+                key={i}
+                animate={{ top: ['-10%', '110%'] }}
+                transition={{ duration: 1.5 + Math.random(), repeat: Infinity, ease: 'linear', delay: i * 0.4 }}
+                className="absolute left-[-2px] w-1 h-10 bg-gradient-to-b from-transparent via-teal-accent to-transparent opacity-40"
+              />
+            ))}
+            <div className="absolute top-1/2 left-[-15px] p-2 bg-card border border-white/10 rounded-full shadow-[0_0_15px_rgba(0,0,0,0.8)] z-30">
+               <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 2 }}>
+                 <ChevronRight className="w-4 h-4 text-teal-accent animate-pulse" />
+               </motion.div>
             </div>
           </div>
 
+          {/* Left Side: RAW FEED */}
+          <div className="flex-1 border-b lg:border-b-0 lg:border-r border-white/5 bg-[#030303] p-0 font-mono text-[11px] overflow-hidden relative selection:bg-teal-accent/30">
+            <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black to-transparent z-10 border-b border-white/5">
+              <h4 className="text-[#00c800] text-[10px] uppercase tracking-[0.3em] flex items-center font-bold">
+                <Terminal className="w-3.5 h-3.5 mr-3" /> INGRESS_BUFFER
+              </h4>
+            </div>
+            
+            <div className="h-full overflow-y-auto px-5 py-16 space-y-2 scroll-smooth custom-scrollbar">
+              <AnimatePresence initial={false}>
+                {normalizedLogs.map((log) => (
+                  <motion.div 
+                    key={"raw-"+log.id}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    onMouseEnter={() => setSelectedLogId(log.id)}
+                    className={`p-1.5 rounded-sm transition-all duration-200 cursor-pointer whitespace-nowrap ${selectedLogId === log.id ? 'bg-teal-accent/15 text-teal-accent border-l-2 border-teal-accent pl-2' : 'text-[#00ff00]/60 hover:text-[#00ff00] hover:bg-white/5'}`}
+                  >
+                    <span className="text-[#006400] mr-3 font-bold opacity-80">[{log.timestamp.split('T')[1].split('.')[0]}]</span>
+                    <span className={selectedLogId === log.id ? 'drop-shadow-[0_0_8px_rgba(45,212,191,0.5)]' : ''}>{log.raw}</span>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
+            {/* Edge Scan Line */}
+            <motion.div 
+              animate={{ top: ['0%', '100%'] }}
+              transition={{ duration: 6, repeat: Infinity, ease: 'linear' }}
+              className="absolute left-0 right-0 h-[100px] bg-gradient-to-b from-transparent via-teal-accent/5 to-transparent pointer-events-none z-10"
+            />
+          </div>
+
           {/* Right Side: NORMALIZED */}
-          <div className="flex-1 bg-card p-4 font-mono overflow-y-auto relative text-sm pb-10">
-            <h4 className="absolute top-4 right-4 text-teal-accent text-xs uppercase flex items-center pointer-events-none bg-card/80 p-1 rounded z-10">
-              <Braces className="w-4 h-4 mr-1" /> NORMALIZED
-            </h4>
-            {filteredLogs.map(log => (
-              <motion.div 
-                key={"norm-"+log.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mb-4 bg-secondary-card p-3 rounded border border-border-subtle relative"
-              >
-                <span className="absolute top-2 right-2 text-[10px] text-teal-accent border border-teal-accent/30 px-1 rounded bg-teal-accent/10">NORMALIZED ✓</span>
-                <pre className="text-white text-xs">
-                  <span className="text-[#8CA0C8]">{"{"}</span>
-                  {Object.entries(log.normalized).map(([key, value], i) => (
-                    <div key={key} className="pl-4">
-                      <span className="text-blue-accent">"{key}"</span>: <span className={typeof value === 'string' ? "text-[#f1fa8c]" : "text-[#bd93f9]"}>{typeof value === 'string' ? `"${value}"` : value}</span>{i < Object.keys(log.normalized).length -1 ? ',' : ''}
+          <div className="flex-1 bg-card/40 p-0 font-mono overflow-hidden relative">
+            <div className="absolute top-0 left-0 right-0 p-4 bg-secondary-card/80 backdrop-blur-xl border-b border-white/5 z-10 flex justify-between items-center shadow-lg">
+              <h4 className="text-teal-accent text-[10px] uppercase tracking-[0.3em] flex items-center font-bold">
+                <Braces className="w-3.5 h-3.5 mr-3" /> SCHEMA_XDR_PRO
+              </h4>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-teal-accent shadow-[0_0_5px_teal-accent]" />
+                <span className="text-[9px] text-text-muted">VALID_OBJECTS: 14</span>
+              </div>
+            </div>
+
+            <div className="h-full overflow-y-auto px-6 py-16 custom-scrollbar scroll-smooth">
+              <AnimatePresence initial={false}>
+                {filteredLogs.map(log => (
+                  <motion.div 
+                    key={"norm-"+log.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`mb-6 p-5 rounded-xl border backdrop-blur-md transition-all duration-500 relative ${selectedLogId === log.id ? 'bg-teal-accent/5 border-teal-accent/40 shadow-[0_20px_40px_rgba(0,0,0,0.3)]' : 'bg-white/[0.02] border-white/5 group-hover:border-white/10'}`}
+                  >
+                    <div className="absolute top-3 right-4 flex items-center gap-3">
+                      <span className="text-[9px] text-teal-accent/60 border border-teal-accent/20 px-2 py-0.5 rounded-full font-bold">XDR_VERIFIED</span>
+                      <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 4, ease: 'linear' }}>
+                        <Activity className="w-3.5 h-3.5 text-teal-accent opacity-30" />
+                      </motion.div>
                     </div>
-                  ))}
-                  <span className="text-[#8CA0C8]">{"}"}</span>
-                </pre>
-              </motion.div>
-            ))}
+                    
+                    <pre className="text-white text-[11px] leading-[1.8]">
+                      <span className="text-purple-400 opacity-60">{"{"}</span>
+                      <div className="pl-5">
+                        <span className="text-blue-400">"header"</span>: <span className="text-purple-400">{"{"}</span>
+                        <div className="pl-5">
+                          <span className="text-orange-300">"sid"</span>: <span className="text-green-300">"{log.id.toUpperCase().substring(0,8)}"</span>,
+                          <span className="text-orange-300">"source"</span>: <span className="text-green-300">"{log.layer.toUpperCase()}_ENG"</span>
+                        </div>
+                        <span className="text-purple-400">{"}"}</span>,
+                        <span className="text-blue-400 mt-2 block">"payload"</span>: <span className="text-purple-400">{"{"}</span>
+                        {(() => {
+                          let data = log.normalized;
+                          if (typeof data === 'string') {
+                            try { data = JSON.parse(data); } catch { data = {}; }
+                          }
+                          const entries = Object.entries(data || {}).filter(([key]) => 
+                            !['layer', 'timestamp', 'normalized', 'schema_version'].includes(key)
+                          );
+                          
+                          if (entries.length === 0) {
+                            return <div className="pl-5 text-gray-500 italic">// No payload context available</div>;
+                          }
+
+                          return entries.map(([key, value], i, arr) => (
+                            <div key={key} className="pl-5 group/entry">
+                              <span className="text-orange-300 group-hover/entry:text-teal-accent transition-colors">"{key}"</span>: 
+                              <span className={typeof value === 'string' ? "text-green-300" : "text-yellow-400"}> {typeof value === 'string' ? `"${value}"` : value}</span>
+                              {i < arr.length - 1 ? <span className="text-white/30">,</span> : ''}
+                            </div>
+                          ));
+                        })()}
+                        <span className="text-purple-400">{"}"}</span>
+                      </div>
+                      <span className="text-purple-400 opacity-60">{"}"}</span>
+                    </pre>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
           </div>
         </div>
       </div>

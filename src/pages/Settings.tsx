@@ -228,22 +228,32 @@ export const Settings = () => {
 
           {activeTab === 'api' && (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-               <h2 className="text-xl font-heading text-white border-b border-border-subtle pb-2">Third-Party Data Integrations</h2>
+               <h2 className="text-xl font-heading text-white border-b border-border-subtle pb-2">Production Data Integrations</h2>
                
                <div className="space-y-4">
                  <div className="p-4 bg-background rounded border border-border-subtle">
-                   <h3 className="text-white font-bold mb-3 flex items-center"><Database className="w-4 h-4 mr-2" /> Splunk / Elastic Forwarder</h3>
-                   <input type="text" placeholder="https://ingest.corp.local:8088" value="https://siem-forward.internal.svc" readOnly className="w-full bg-[#0a1024] border border-border-subtle text-text-muted p-3 rounded font-mono text-sm mb-2" />
-                   <p className="text-xs text-green-500 font-mono">Status: Connected (24ms ping)</p>
+                   <h3 className="text-white font-bold mb-3 flex items-center group"><Database className="w-4 h-4 mr-2 text-teal-accent" /> Supabase Realtime DB</h3>
+                   <div className="flex items-center space-x-2 mb-2">
+                     <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                     <p className="text-xs text-text-muted font-mono">{import.meta.env.VITE_SUPABASE_URL}</p>
+                   </div>
+                   <p className="text-[10px] text-green-500 font-mono tracking-tighter uppercase">Status: Connected & Synchronized (RLS: Disabled)</p>
                  </div>
 
-                 <div className="p-4 bg-background rounded border border-border-subtle opacity-70">
-                   <h3 className="text-white font-bold mb-3 flex items-center"><ShieldCheck className="w-4 h-4 mr-2" /> CrowdStrike Falcon API</h3>
-                   <input type="password" value="************************" readOnly className="w-full bg-[#0a1024] border border-border-subtle text-text-muted p-3 rounded font-mono text-sm mb-2" />
-                   <div className="flex gap-2">
-                     <button className="px-3 py-1 bg-secondary-card border border-border-subtle rounded text-xs">Verify</button>
-                     <button className="px-3 py-1 bg-secondary-card border border-border-subtle text-red-500 rounded text-xs">Revoke Key</button>
+                 <div className="p-4 bg-background rounded border border-border-subtle">
+                   <h3 className="text-white font-bold mb-3 flex items-center"><Server className="w-4 h-4 mr-2 text-blue-accent" /> Local Log Ingester (sentinel-ingest.js)</h3>
+                   <div className="bg-[#0a1024] border border-border-subtle p-3 rounded font-mono text-xs mb-3 text-text-muted">
+                     Watcher Target: <span className="text-blue-accent">/logs/sentinel.log</span>
                    </div>
+                   <div className="flex gap-2">
+                     <span className="px-2 py-1 bg-green-500/10 border border-green-500/50 text-green-500 text-[10px] font-bold rounded">WATCHING</span>
+                     <span className="px-2 py-1 bg-secondary-card border border-border-subtle text-text-muted text-[10px] font-bold rounded">SYNCING TO DB</span>
+                   </div>
+                 </div>
+
+                 <div className="p-4 bg-background rounded border border-border-subtle opacity-50">
+                   <h3 className="text-white font-bold mb-3 flex items-center"><ShieldCheck className="w-4 h-4 mr-2" /> CrowdStrike Falcon API</h3>
+                   <p className="text-xs text-text-muted italic">Integration pending authentication module...</p>
                  </div>
                </div>
             </div>

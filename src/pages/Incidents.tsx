@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../store';
 import type { SecurityEvent } from '../types';
@@ -209,9 +209,20 @@ export const Incidents = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const filter = searchParams.get('filter') || 'All';
   const mitreFilter = searchParams.get('mitre');
+  const incidentIdParam = searchParams.get('id');
   
   const [selectedIncident, setSelectedIncident] = useState<SecurityEvent | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+  // Handle URL-based incident selection
+  useEffect(() => {
+    if (incidentIdParam && incidents.length > 0) {
+      const target = incidents.find(inc => inc.id === incidentIdParam);
+      if (target) {
+        setSelectedIncident(target);
+      }
+    }
+  }, [incidentIdParam, incidents]);
 
   const setFilter = (f: string) => {
     setSearchParams(prev => {

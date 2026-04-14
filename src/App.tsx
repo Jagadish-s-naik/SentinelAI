@@ -10,11 +10,18 @@ import { Playbooks } from './pages/Playbooks';
 import { MitreMap } from './pages/MitreMap';
 import { Settings } from './pages/Settings';
 
+import { useStore } from './store';
+
 function App() {
+  const initialize = useStore(state => state.initialize);
+
   useEffect(() => {
+    // Initialize the Supabase store
+    initialize();
+    
     // Start generating simulated security events on mount
     startSimulationEngine();
-  }, []);
+  }, [initialize]);
 
   return (
     <Router>

@@ -1,5 +1,4 @@
-import { v4 as uuidv4 } from 'uuid';
-import type { SecurityEvent, LayerType } from '../types';
+import type { LayerType } from '../types';
 import { useStore } from '../store';
 
 const generateRandomIP = () => {
@@ -11,9 +10,7 @@ export const startSimulationEngine = () => {
   const generateBruteForce = () => {
     if (useStore.getState().isPaused) return;
     const isFP = Math.random() > 0.8;
-    const event: SecurityEvent = {
-      id: uuidv4(),
-      timestamp: new Date().toISOString(),
+    const event: any = {
       layer: 'network',
       type: 'brute_force',
       src_ip: '192.168.1.' + Math.floor(Math.random() * 255),
@@ -39,9 +36,7 @@ export const startSimulationEngine = () => {
 
   const generateC2Beacon = () => {
     if (useStore.getState().isPaused) return;
-    const event: SecurityEvent = {
-      id: uuidv4(),
-      timestamp: new Date().toISOString(),
+    const event: any = {
       layer: 'network',
       type: 'c2_beacon',
       src_ip: 'host-092',
@@ -68,9 +63,7 @@ export const startSimulationEngine = () => {
   const generateExfiltration = () => {
     if (useStore.getState().isPaused) return;
     const isFP = true; // explicitly making it frequently a FP as per requirements
-    const event: SecurityEvent = {
-      id: uuidv4(),
-      timestamp: new Date().toISOString(),
+    const event: any = {
       layer: 'endpoint',
       type: 'exfiltration',
       src_ip: '10.0.5.44',
@@ -94,6 +87,52 @@ export const startSimulationEngine = () => {
     useStore.getState().addIncident(event);
   };
 
+  const generateAccountDiscovery = () => {
+    if (useStore.getState().isPaused) return;
+    const event: any = {
+      layer: 'endpoint',
+      type: 'lateral_movement',
+      src_ip: '10.0.' + Math.floor(Math.random() * 255) + '.12',
+      target: 'LDAP-Controller-PROD',
+      confidence: Math.floor(Math.random() * 15 + 75), 
+      severity: 'MEDIUM',
+      mitre_tag: 'T1087',
+      is_false_positive: false,
+      status: 'ACTIVE',
+      history: [],
+      shap_features: [
+        { feature: 'ldap_query_volume', value: 'high', contribution: 0.82 },
+        { feature: 'unique_account_lookups', value: '145', contribution: 0.74 },
+        { feature: 'process_name', value: 'net.exe', contribution: 0.65 },
+      ],
+      explanation: "Unusual volume of account discovery queries detected from a workstation targeting the domain controller.",
+    };
+    useStore.getState().addIncident(event);
+  };
+
+  const generateNetworkDoS = () => {
+    if (useStore.getState().isPaused) return;
+    const event: any = {
+      layer: 'network',
+      type: 'brute_force',
+      src_ip: '45.18.' + Math.floor(Math.random() * 255) + '.10',
+      target: 'Public-Facing-API-Gateway',
+      confidence: Math.floor(Math.random() * 10 + 90), 
+      severity: 'CRITICAL',
+      mitre_tag: 'T1498',
+      is_false_positive: false,
+      status: 'ACTIVE',
+      history: [],
+      shap_features: [
+        { feature: 'pps_delta', value: '1.2M/sec', contribution: 0.94 },
+        { feature: 'syn_flood_ratio', value: '0.88', contribution: 0.88 },
+        { feature: 'latency_impact', value: '+4500ms', contribution: 0.81 },
+      ],
+      explanation: "Layer 4 SYN flood detected targeting the public API gateway, causing significant latency spikes.",
+    };
+    useStore.getState().addIncident(event);
+  };
+
   // Run the intervals
   setInterval(() => {
     if (Math.random() > 0.5) generateBruteForce();
@@ -107,22 +146,26 @@ export const startSimulationEngine = () => {
     if (Math.random() > 0.6) generateExfiltration();
   }, 9000);
 
+  setInterval(() => {
+    if (Math.random() > 0.8) generateAccountDiscovery();
+  }, 12000);
+
+  setInterval(() => {
+    if (Math.random() > 0.9) generateNetworkDoS();
+  }, 15000);
+
   // Generate generic raw logs frequently
   setInterval(() => {
     if (useStore.getState().isPaused) return;
     const layers: LayerType[] = ['network', 'endpoint', 'application'];
     const layer = layers[Math.floor(Math.random() * layers.length)];
-    const id = uuidv4();
     const ts = new Date().toISOString();
     
     useStore.getState().addRawLog({
-      id,
-      timestamp: ts,
       layer,
       raw: `${ts.replace('T', ' ').substring(0, 19)} | ${generateRandomIP()} -> 10.0.0.1 | PORT:22 | PROTO:TCP | BYTES:1240 | FLAGS:SYN`,
       normalized: {
         timestamp: ts,
-        layer: layer,
         src_ip: generateRandomIP(),
         dst_ip: '10.0.0.1',
         port: 22,
@@ -130,7 +173,6 @@ export const startSimulationEngine = () => {
         bytes: 1240,
         flags: 'SYN',
         event_type: 'connection_attempt',
-        normalized: true,
         schema_version: '2.1'
       }
     });

@@ -1,27 +1,33 @@
 import { create } from 'zustand';
 import type { RawLog, SecurityEvent, SystemSettings } from './types';
+import { supabase } from './supabase';
 
 interface AppState {
   incidents: SecurityEvent[];
   rawLogs: RawLog[];
   settings: SystemSettings;
   simulationActive: boolean;
-  addIncident: (incident: SecurityEvent) => void;
-  addRawLog: (log: RawLog) => void;
-  clearIncidents: () => void;
-  clearLogs: () => void;
-  updateSettings: (newSettings: Partial<SystemSettings>) => void;
+  isPaused: boolean;
+  activePlaybookId: string | null;
+  
+  // Actions
+  addIncident: (incident: Omit<SecurityEvent, 'id' | 'timestamp'>) => Promise<void>;
+  addRawLog: (log: Omit<RawLog, 'id' | 'timestamp'>) => Promise<void>;
+  clearIncidents: () => Promise<void>;
+  clearLogs: () => Promise<void>;
+  updateSettings: (newSettings: Partial<SystemSettings>) => Promise<void>;
   toggleSimulation: () => void;
   pauseSimulation: (paused: boolean) => void;
-  isPaused: boolean;
-  resolveIncident: (id: string) => void;
-  bulkResolveIncidents: (ids: string[]) => void;
-  escalateIncident: (id: string) => void;
-  bulkEscalateIncidents: (ids: string[]) => void;
-  updateRemediation: (id: string, action: string) => void;
-  activePlaybookId: string | null;
+  resolveIncident: (id: string) => Promise<void>;
+  bulkResolveIncidents: (ids: string[]) => Promise<void>;
+  escalateIncident: (id: string) => Promise<void>;
+  bulkEscalateIncidents: (ids: string[]) => Promise<void>;
+  updateRemediation: (id: string, action: string) => Promise<void>;
   setActivePlaybookId: (id: string | null) => void;
   spawnManualIncident: (type: 'ransomware' | 'c2' | 'exfil' | 'ddos') => void;
+  
+  // Initializers
+  initialize: () => Promise<void>;
 }
 
 const defaultSettings: SystemSettings = {
@@ -36,28 +42,79 @@ const defaultSettings: SystemSettings = {
   autoEscalation: false,
 };
 
-export const useStore = create<AppState>((set) => ({
+export const useStore = create<AppState>((set, get) => ({
   incidents: [],
   rawLogs: [],
   settings: defaultSettings,
   simulationActive: false,
   isPaused: false,
   activePlaybookId: null,
-  
-  addIncident: (incident) => set((state) => ({
-    incidents: [incident, ...state.incidents].slice(0, 1000)
-  })),
-  
-  addRawLog: (log) => set((state) => ({
-    rawLogs: [log, ...state.rawLogs].slice(0, 500)
-  })),
 
-  clearIncidents: () => set({ incidents: [] }),
-  clearLogs: () => set({ rawLogs: [] }),
+  initialize: async () => {
+    // Fetch initial data
+    const [{ data: incidents }, { data: logs }, { data: settings }] = await Promise.all([
+      supabase.from('incidents').select('*').order('timestamp', { ascending: false }).limit(100),
+      supabase.from('raw_logs').select('*').order('timestamp', { ascending: false }).limit(100),
+      supabase.from('system_settings').select('*').single()
+    ]);
+
+    set({ 
+      incidents: incidents || [], 
+      rawLogs: logs || [],
+      settings: settings ? (settings as any) : defaultSettings
+    });
+
+    // Realtime Subscriptions
+    supabase.channel('public:incidents')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'incidents' }, (payload) => {
+        const { eventType, new: newRow, old: oldRow } = payload;
+        
+        if (eventType === 'INSERT') {
+          set((state) => ({ incidents: [newRow as SecurityEvent, ...state.incidents].slice(0, 1000) }));
+        } else if (eventType === 'UPDATE') {
+          set((state) => ({ 
+            incidents: state.incidents.map(inc => inc.id === newRow.id ? (newRow as SecurityEvent) : inc) 
+          }));
+        } else if (eventType === 'DELETE') {
+          set((state) => ({ incidents: state.incidents.filter(inc => inc.id !== oldRow.id) }));
+        }
+      })
+      .subscribe();
+
+    supabase.channel('public:raw_logs')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'raw_logs' }, (payload) => {
+        set((state) => ({ rawLogs: [payload.new as RawLog, ...state.rawLogs].slice(0, 500) }));
+      })
+      .subscribe();
+
+    supabase.channel('public:system_settings')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'system_settings' }, (payload) => {
+        set({ settings: payload.new as SystemSettings });
+      })
+      .subscribe();
+  },
   
-  updateSettings: (newSettings) => set((state) => ({
-    settings: { ...state.settings, ...newSettings }
-  })),
+  addIncident: async (incident) => {
+    await supabase.from('incidents').insert([incident]);
+  },
+  
+  addRawLog: async (log) => {
+    await supabase.from('raw_logs').insert([log]);
+  },
+
+  clearIncidents: async () => {
+    await supabase.from('incidents').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+  },
+
+  clearLogs: async () => {
+    await supabase.from('raw_logs').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+  },
+  
+  updateSettings: async (newSettings) => {
+    const { settings } = get();
+    const updated = { ...settings, ...newSettings };
+    await supabase.from('system_settings').update(updated).eq('id', 1);
+  },
   
   toggleSimulation: () => set((state) => ({
     simulationActive: !state.simulationActive
@@ -65,43 +122,41 @@ export const useStore = create<AppState>((set) => ({
 
   pauseSimulation: (paused) => set({ isPaused: paused }),
 
-  resolveIncident: (id) => set((state) => ({
-    incidents: state.incidents.filter(inc => inc.id !== id),
-    activePlaybookId: state.activePlaybookId === id ? null : state.activePlaybookId
-  })),
+  resolveIncident: async (id) => {
+    await supabase.from('incidents').delete().eq('id', id);
+    if (get().activePlaybookId === id) set({ activePlaybookId: null });
+  },
 
-  bulkResolveIncidents: (ids) => set((state) => ({
-    incidents: state.incidents.filter(inc => !ids.includes(inc.id)),
-    activePlaybookId: state.activePlaybookId && ids.includes(state.activePlaybookId) ? null : state.activePlaybookId
-  })),
+  bulkResolveIncidents: async (ids) => {
+    await supabase.from('incidents').delete().in('id', ids);
+    if (get().activePlaybookId && ids.includes(get().activePlaybookId!)) set({ activePlaybookId: null });
+  },
 
-  escalateIncident: (id) => set((state) => ({
-    incidents: state.incidents.map(inc => inc.id === id ? { ...inc, severity: 'CRITICAL' } : inc)
-  })),
+  escalateIncident: async (id) => {
+    await supabase.from('incidents').update({ severity: 'CRITICAL' }).eq('id', id);
+  },
 
-  bulkEscalateIncidents: (ids) => set((state) => ({
-    incidents: state.incidents.map(inc => ids.includes(inc.id) ? { ...inc, severity: 'CRITICAL' } : inc)
-  })),
+  bulkEscalateIncidents: async (ids) => {
+    await supabase.from('incidents').update({ severity: 'CRITICAL' }).in('id', ids);
+  },
 
-  updateRemediation: (id, action) => set((state) => ({
-    incidents: state.incidents.map(inc => {
-      if (inc.id === id) {
-        const history = inc.history || [];
-        return { 
-          ...inc, 
-          status: 'MITIGATED',
-          history: [...history, { action, timestamp: new Date().toISOString() }]
-        };
-      }
-      return inc;
-    })
-  })),
+  updateRemediation: async (id, action) => {
+    const incident = get().incidents.find(inc => inc.id === id);
+    if (incident) {
+      const history = incident.history || [];
+      const updatedHistory = [...history, { action, timestamp: new Date().toISOString() }];
+      await supabase.from('incidents').update({ 
+        status: 'MITIGATED',
+        history: updatedHistory
+      }).eq('id', id);
+    }
+  },
 
   setActivePlaybookId: (id) => set(() => ({
     activePlaybookId: id
   })),
 
-  spawnManualIncident: (type) => set((state) => {
+  spawnManualIncident: (type) => {
     const scenarios: Record<string, Omit<SecurityEvent, 'id' | 'timestamp' | 'status' | 'history'>> = {
       ransomware: {
         type: 'exfiltration',
@@ -166,16 +221,13 @@ export const useStore = create<AppState>((set) => ({
     };
 
     const scenario = scenarios[type];
-    const newIncident: SecurityEvent = {
-        id: `SIM-${Math.random().toString(36).substr(2, 9)}`,
-        timestamp: new Date().toISOString(),
+    const newIncident = {
         ...scenario,
         status: 'ACTIVE',
         history: [{ action: 'Simulated Injection', timestamp: new Date().toISOString() }]
     };
 
-    return {
-        incidents: [newIncident, ...state.incidents]
-    };
-  })
+    supabase.from('incidents').insert([newIncident]).then(() => {});
+  }
 }));
+
