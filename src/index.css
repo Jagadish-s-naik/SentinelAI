@@ -1,0 +1,33 @@
+@import "tailwindcss";
+@config "../tailwind.config.js";
+@layer base {
+  body {
+    @apply bg-background text-text-primary font-sans antialiased;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #0A0F1E; 
+}
+::-webkit-scrollbar-thumb {
+  background: #1E3A5F; 
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #2a5286; 
+}
+
+/* Base formatting for typing animation cursor */
+.typing-cursor::after {
+  content: "▋";
+  animation: blink 1s step-start infinite;
+}
+
+@keyframes blink {
+  50% { opacity: 0; }
+}
