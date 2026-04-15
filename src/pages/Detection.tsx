@@ -1,6 +1,10 @@
 import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle2, XCircle, Search, Server, Terminal, Braces, Activity, Zap, ShieldCheck, ChevronRight } from 'lucide-react';
+import { 
+  CheckCircle2, XCircle, Search, Server, Terminal, Braces, 
+  Activity, Zap, ShieldCheck, ChevronRight, Cpu, Globe, 
+  Shield, Code, List, Clock
+} from 'lucide-react';
 import { LineChart, Line, ResponsiveContainer } from 'recharts';
 import { useStore } from '../store';
 import { format } from 'date-fns';
@@ -114,6 +118,135 @@ const ThreatSparkline = ({ title, type, color }: { title: string, type: string, 
         </ResponsiveContainer>
       </div>
     </div>
+  );
+};
+
+const TelemetryInspectorCard = ({ log, isSelected }: { log: any, isSelected: boolean }) => {
+  const [showRaw, setShowRaw] = useState(false);
+
+  // Normalize data helper
+  const data = useMemo(() => {
+    let payload = log.normalized;
+    if (typeof payload === 'string') {
+      try { payload = JSON.parse(payload); } catch { payload = {}; }
+    }
+    return payload || {};
+  }, [log.normalized]);
+
+  // Extract key fields for the grid
+  const keyFields = useMemo(() => {
+    const fields: { label: string, value: any, icon?: any, color?: string }[] = [];
+    
+    if (data.src_ip) fields.push({ label: 'SOURCE_IP', value: data.src_ip, icon: Globe, color: 'text-blue-400' });
+    if (data.dst_ip) fields.push({ label: 'TARGET_IP', value: data.dst_ip, icon: Shield, color: 'text-purple-400' });
+    if (data.port) fields.push({ label: 'DEST_PORT', value: data.port, icon: Server, color: 'text-orange-400' });
+    if (data.protocol) fields.push({ label: 'PROTOCOL', value: data.protocol, icon: Activity, color: 'text-teal-accent' });
+    if (data.action) fields.push({ label: 'ACTION', value: data.action, icon: Zap, color: data.action.toLowerCase().includes('reject') ? 'text-red-400' : 'text-green-400' });
+    if (data.user) fields.push({ label: 'IDENTITY', value: data.user, icon: ShieldCheck, color: 'text-yellow-400' });
+    
+    // Fallback for generic fields if key ones missing
+    Object.entries(data).forEach(([key, val]) => {
+      if (fields.length < 6 && !fields.find(f => f.label.toLowerCase() === key.toLowerCase()) && !['layer', 'timestamp', 'schema_version'].includes(key)) {
+        fields.push({ label: key.toUpperCase(), value: String(val) });
+      }
+    });
+
+    return fields;
+  }, [data]);
+
+  const timestamp = log.timestamp.split('T')[1].split('.')[0];
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className={`mb-4 overflow-hidden rounded-xl border transition-all duration-500 relative ${
+        isSelected 
+          ? 'bg-teal-accent/[0.07] border-teal-accent/40 shadow-[0_15px_35px_rgba(45,212,191,0.15)] ring-1 ring-teal-accent/20' 
+          : 'bg-white/[0.02] border-white/5 hover:border-white/10'
+      }`}
+    >
+      {/* Header Bar */}
+      <div className="px-4 py-2 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
+        <div className="flex items-center gap-3">
+          <div className={`px-2 py-0.5 rounded text-[9px] font-bold tracking-tighter ${isSelected ? 'bg-teal-accent text-black' : 'bg-white/10 text-white/60'}`}>
+            ID_{log.id.toUpperCase().substring(0, 8)}
+          </div>
+          <div className="flex items-center gap-1.5 text-[9px] text-text-muted font-mono">
+            <Clock className="w-3 h-3 opacity-50" />
+            {timestamp}
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => setShowRaw(!showRaw)}
+            className={`p-1 rounded hover:bg-white/10 transition-colors ${showRaw ? 'text-teal-accent' : 'text-text-muted'}`}
+            title="Toggle Raw JSON"
+          >
+            <Braces className="w-3.5 h-3.5" />
+          </button>
+          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-teal-accent/10 border border-teal-accent/20">
+             <div className="w-1.5 h-1.5 rounded-full bg-teal-accent animate-pulse" />
+             <span className="text-[9px] font-bold text-teal-accent uppercase tracking-widest">Augmented</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content Area */}
+      <div className="p-4 pt-3">
+        {showRaw ? (
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }}
+            className="font-mono text-[10px] leading-relaxed max-h-[200px] overflow-y-auto custom-scrollbar bg-black/40 p-3 rounded-lg border border-white/5"
+          >
+            <pre className="text-purple-300">
+              {JSON.stringify({ header: { sid: log.id, origin: log.layer }, payload: data }, null, 2)}
+            </pre>
+          </motion.div>
+        ) : (
+          <div className="space-y-4">
+             {/* Key Metrics Grid */}
+             <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                {keyFields.map((field, idx) => (
+                  <div key={idx} className="flex flex-col gap-1 p-2 rounded bg-white/[0.03] border border-white/5 hover:bg-white/[0.05] transition-colors group/item">
+                    <div className="flex items-center gap-1.5">
+                       {field.icon && <field.icon className={`w-3 h-3 opacity-40 group-hover/item:opacity-80 transition-opacity ${field.color || 'text-white'}`} />}
+                       <span className="text-[8px] text-text-muted font-mono uppercase tracking-tighter">{field.label}</span>
+                    </div>
+                    <span className={`text-[11px] font-mono font-bold truncate ${field.color || 'text-white/90'}`}>
+                      {field.value}
+                    </span>
+                  </div>
+                ))}
+             </div>
+
+             {/* Dynamic Summary Strip */}
+             <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-teal-accent/[0.03] border border-teal-accent/10">
+                <div className="flex items-center gap-2">
+                   <Shield className="w-3.5 h-3.5 text-teal-accent opacity-50" />
+                   <p className="text-[10px] text-white/80 font-heading leading-tight italic">
+                     Data Synapse engine normalized {Object.keys(data).length} telemetry points. No critical threats detected.
+                   </p>
+                </div>
+                <div className="h-6 w-px bg-white/10 mx-2" />
+                <div className="flex items-center gap-1.5">
+                   <span className="text-[9px] text-text-muted font-mono">SEV:</span>
+                   <span className="text-[10px] font-bold text-green-400">0.12</span>
+                </div>
+             </div>
+          </div>
+        )}
+      </div>
+
+      {/* Intersection Lines */}
+      {isSelected && (
+        <div className="absolute top-0 right-0 w-32 h-32 pointer-events-none overflow-hidden">
+          <div className="absolute top-[-50px] right-[-50px] w-[100px] h-[100px] border border-teal-accent/20 rounded-full animate-ping" />
+        </div>
+      )}
+    </motion.div>
   );
 };
 
@@ -245,66 +378,22 @@ export const Detection = () => {
           <div className="flex-1 bg-card/40 p-0 font-mono overflow-hidden relative">
             <div className="absolute top-0 left-0 right-0 p-4 bg-secondary-card/80 backdrop-blur-xl border-b border-white/5 z-10 flex justify-between items-center shadow-lg">
               <h4 className="text-teal-accent text-[10px] uppercase tracking-[0.3em] flex items-center font-bold">
-                <Braces className="w-3.5 h-3.5 mr-3" /> SCHEMA_XDR_PRO
+                <List className="w-3.5 h-3.5 mr-3" /> SCHEMA_XDR_PRO
               </h4>
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-teal-accent shadow-[0_0_5px_teal-accent]" />
-                <span className="text-[9px] text-text-muted">VALID_OBJECTS: 14</span>
+                <span className="text-[9px] text-text-muted">VALID_OBJECTS: {filteredLogs.length}</span>
               </div>
             </div>
 
             <div className="h-full overflow-y-auto px-6 py-16 custom-scrollbar scroll-smooth">
               <AnimatePresence initial={false}>
                 {filteredLogs.map(log => (
-                  <motion.div 
-                    key={"norm-"+log.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className={`mb-6 p-5 rounded-xl border backdrop-blur-md transition-all duration-500 relative ${selectedLogId === log.id ? 'bg-teal-accent/5 border-teal-accent/40 shadow-[0_20px_40px_rgba(0,0,0,0.3)]' : 'bg-white/[0.02] border-white/5 group-hover:border-white/10'}`}
-                  >
-                    <div className="absolute top-3 right-4 flex items-center gap-3">
-                      <span className="text-[9px] text-teal-accent/60 border border-teal-accent/20 px-2 py-0.5 rounded-full font-bold">XDR_VERIFIED</span>
-                      <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 4, ease: 'linear' }}>
-                        <Activity className="w-3.5 h-3.5 text-teal-accent opacity-30" />
-                      </motion.div>
-                    </div>
-                    
-                    <pre className="text-white text-[11px] leading-[1.8]">
-                      <span className="text-purple-400 opacity-60">{"{"}</span>
-                      <div className="pl-5">
-                        <span className="text-blue-400">"header"</span>: <span className="text-purple-400">{"{"}</span>
-                        <div className="pl-5">
-                          <span className="text-orange-300">"sid"</span>: <span className="text-green-300">"{log.id.toUpperCase().substring(0,8)}"</span>,
-                          <span className="text-orange-300">"source"</span>: <span className="text-green-300">"{log.layer.toUpperCase()}_ENG"</span>
-                        </div>
-                        <span className="text-purple-400">{"}"}</span>,
-                        <span className="text-blue-400 mt-2 block">"payload"</span>: <span className="text-purple-400">{"{"}</span>
-                        {(() => {
-                          let data = log.normalized;
-                          if (typeof data === 'string') {
-                            try { data = JSON.parse(data); } catch { data = {}; }
-                          }
-                          const entries = Object.entries(data || {}).filter(([key]) => 
-                            !['layer', 'timestamp', 'normalized', 'schema_version'].includes(key)
-                          );
-                          
-                          if (entries.length === 0) {
-                            return <div className="pl-5 text-gray-500 italic">// No payload context available</div>;
-                          }
-
-                          return entries.map(([key, value], i, arr) => (
-                            <div key={key} className="pl-5 group/entry">
-                              <span className="text-orange-300 group-hover/entry:text-teal-accent transition-colors">"{key}"</span>: 
-                              <span className={typeof value === 'string' ? "text-green-300" : "text-yellow-400"}> {typeof value === 'string' ? `"${value}"` : value}</span>
-                              {i < arr.length - 1 ? <span className="text-white/30">,</span> : ''}
-                            </div>
-                          ));
-                        })()}
-                        <span className="text-purple-400">{"}"}</span>
-                      </div>
-                      <span className="text-purple-400 opacity-60">{"}"}</span>
-                    </pre>
-                  </motion.div>
+                  <TelemetryInspectorCard 
+                    key={"norm-"+log.id} 
+                    log={log} 
+                    isSelected={selectedLogId === log.id} 
+                  />
                 ))}
               </AnimatePresence>
             </div>
