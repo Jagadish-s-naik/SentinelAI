@@ -1,7 +1,13 @@
 import type { LayerType } from '../types';
 import { useStore } from '../store';
 
+const hotIPs = ['192.168.1.45', '10.0.5.44', '172.16.0.9', '45.18.29.102'];
+
 const generateRandomIP = () => {
+  // 30% chance to reuse a hot IP for correlation purposes
+  if (Math.random() < 0.3) {
+    return hotIPs[Math.floor(Math.random() * hotIPs.length)];
+  }
   return `${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`;
 };
 
