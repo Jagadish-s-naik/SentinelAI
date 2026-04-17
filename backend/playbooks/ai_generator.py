@@ -2,6 +2,7 @@ import os
 from typing import List, Dict, Any
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
+from langchain.chains import LLMChain
 
 class PlaybookGenerator:
     """

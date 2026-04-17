@@ -8,6 +8,9 @@ xgboost
 pandas
 numpy
 openai
+langchain
+langchain-openai
+langchain-core
 aiofiles
 python-multipart
 gunicorn
