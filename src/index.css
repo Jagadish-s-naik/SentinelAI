@@ -1,33 +1,253 @@
+/* ═══════════════════════════════════════════════════════
+   SentinelAI — Kalvium Design System CSS
+   ═══════════════════════════════════════════════════════ */
+
+/* Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+/* Tailwind */
 @import "tailwindcss";
 @config "../tailwind.config.js";
+
+/* ── Base Reset ────────────────────────────────────────── */
 @layer base {
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
   body {
-    @apply bg-background text-text-primary font-sans antialiased;
+    font-family: 'Inter', system-ui, sans-serif;
+    background-color: #FFFFFF;
+    color: #111827;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* Dot-grid page texture */
+    background-image: radial-gradient(#D1D5DB 1px, transparent 1px);
+    background-size: 24px 24px;
+    min-height: 100vh;
   }
+
+  /* Scrollbar — Light theme */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: #F3F4F6; }
+  ::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #9CA3AF; }
 }
 
-/* Custom Scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+/* ── Page Transitions ──────────────────────────────────── */
+.page-enter {
+  animation: pageEnter 0.2s ease-out forwards;
 }
-::-webkit-scrollbar-track {
-  background: #0A0F1E; 
+@keyframes pageEnter {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
-::-webkit-scrollbar-thumb {
-  background: #1E3A5F; 
+
+/* ── Dot-grid inside cards ─────────────────────────────── */
+.dot-grid {
+  background-color: #FAFAFA;
+  background-image: radial-gradient(#E5E7EB 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+/* ── Skeleton Shimmer ──────────────────────────────────── */
+.skeleton {
+  background: linear-gradient(90deg, #F3F4F6 25%, #E5E7EB 50%, #F3F4F6 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite linear;
+}
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to   { background-position:  200% 0; }
+}
+
+/* ── Toast Notification System ────────────────────────── */
+.toast-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+.toast {
+  background: #fff;
+  border-left: 4px solid;
+  border-radius: 8px;
+  padding: 12px 16px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  pointer-events: all;
+  min-width: 280px;
+  max-width: 360px;
+  animation: toastIn 0.25s ease-out forwards;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+}
+.toast.success { border-color: #22C55E; }
+.toast.error   { border-color: #E53935; }
+.toast.warning { border-color: #F59E0B; }
+.toast.info    { border-color: #3B82F6; }
+.toast-title   { font-weight: 600; color: #111827; margin-bottom: 2px; }
+.toast-desc    { font-size: 12px; color: #6B7280; }
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes toastOut {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to   { opacity: 0; transform: translateY(4px) scale(0.97); }
+}
+
+/* ── Custom Scrollbar (sidebar dark area) ──────────────── */
+.sidebar-scroll::-webkit-scrollbar { width: 4px; }
+.sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
+.sidebar-scroll::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+
+/* ── Kalvium Card ──────────────────────────────────────── */
+.k-card {
+  background: #FAFAFA;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+}
+
+/* ── Severity Badges ───────────────────────────────────── */
+.badge-critical { background: #FFF1F0; color: #E53935; border: 1px solid #FECACA; }
+.badge-high     { background: #FFF7ED; color: #EA580C; border: 1px solid #FED7AA; }
+.badge-medium   { background: #EFF6FF; color: #3B82F6; border: 1px solid #BFDBFE; }
+.badge-low      { background: #F0FDF4; color: #16A34A; border: 1px solid #BBF7D0; }
+
+/* ── Sidebar Active State ──────────────────────────────── */
+.nav-active {
+  background: #1A1A1A;
+  border-left: 3px solid #E53935;
+  color: #E53935;
+}
+.nav-item {
+  border-left: 3px solid transparent;
+  transition: all 0.15s ease;
+}
+.nav-item:hover {
+  background: #1A1A1A;
+  color: #FFFFFF;
+}
+
+/* ── MITRE Matrix Cell ─────────────────────────────────── */
+.mitre-cell {
+  background: #FAFAFA;
+  border: 1px solid #E5E7EB;
   border-radius: 4px;
+  padding: 6px 8px;
+  cursor: pointer;
+  font-size: 11px;
+  transition: all 0.15s ease;
+  font-family: 'Inter', sans-serif;
 }
-::-webkit-scrollbar-thumb:hover {
-  background: #2a5286; 
+.mitre-cell:hover {
+  background: #FFF1F0;
+  border-color: #FECACA;
+}
+.mitre-cell.active {
+  background: #FFF1F0;
+  border-color: #E53935;
+  color: #E53935;
+  font-weight: 600;
 }
 
-/* Base formatting for typing animation cursor */
+/* ── Red Primary Button ────────────────────────────────── */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: #E53935;
+  color: #fff;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.btn-primary:hover { background: #C62828; }
+.btn-primary:disabled { background: #E5E7EB; color: #9CA3AF; cursor: not-allowed; }
+
+/* ── Ghost Button ──────────────────────────────────────── */
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: transparent;
+  color: #6B7280;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid #E5E7EB;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.btn-ghost:hover { background: #F3F4F6; color: #111827; border-color: #D1D5DB; }
+
+/* ── Filter Pill ───────────────────────────────────────── */
+.filter-pill {
+  padding: 4px 12px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 500;
+  background: #F3F4F6;
+  color: #6B7280;
+  border: 1px solid #E5E7EB;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.filter-pill.active, .filter-pill:hover {
+  background: #FFF1F0;
+  color: #E53935;
+  border-color: #FECACA;
+}
+
+/* ── Progress / SHAP bar ───────────────────────────────── */
+.shap-bar-fill { background: #E53935; border-radius: 2px; transition: width 0.6s ease; }
+.shap-bar-neg  { background: #3B82F6; border-radius: 2px; transition: width 0.6s ease; }
+
+/* ── Ticker ────────────────────────────────────────────── */
+.ticker-wrap { overflow: hidden; white-space: nowrap; }
+.ticker-inner { display: inline-block; animation: ticker 25s linear infinite; }
+
+/* ── Connection line ───────────────────────────────────── */
+.connection-line {
+  stroke: #D1D5DB;
+  stroke-width: 1.5;
+  fill: none;
+  stroke-dasharray: 4 3;
+}
+
+/* ── Responsive helpers ────────────────────────────────── */
+@media (max-width: 1024px) {
+  .sidebar-expanded { width: 56px !important; }
+  .sidebar-label    { display: none !important; }
+  .status-bar       { display: none !important; }
+}
+
+/* ── Custom range slider (red) ─────────────────────────── */
+input[type="range"] { accent-color: #E53935; }
+
+/* ── Monospace data elements ───────────────────────────── */
+.mono-data {
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  font-size: 12px;
+}
+
+/* ── Typing cursor ─────────────────────────────────────── */
 .typing-cursor::after {
   content: "▋";
   animation: blink 1s step-start infinite;
 }
+@keyframes blink { 50% { opacity: 0; } }
 
-@keyframes blink {
-  50% { opacity: 0; }
-}
+/* ── Custom scrollbar for dark sections (terminal) ──────── */
+.terminal-scroll::-webkit-scrollbar { width: 4px; }
+.terminal-scroll::-webkit-scrollbar-track { background: #1a1a1a; }
+.terminal-scroll::-webkit-scrollbar-thumb { background: #444; border-radius: 2px; }

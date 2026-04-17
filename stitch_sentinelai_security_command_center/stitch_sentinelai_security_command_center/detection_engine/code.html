@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary-container": "#2170e4",
+                        "tertiary-fixed-dim": "#adc6ff",
+                        "outline-variant": "#e4beb9",
+                        "on-error-container": "#93000a",
+                        "error": "#ba1a1a",
+                        "surface-tint": "#bb171c",
+                        "on-error": "#ffffff",
+                        "inverse-on-surface": "#edf0ff",
+                        "on-surface": "#141b2b",
+                        "tertiary-fixed": "#d8e2ff",
+                        "surface-container": "#e9edff",
+                        "surface-bright": "#f9f9ff",
+                        "on-tertiary": "#ffffff",
+                        "on-primary-fixed": "#410002",
+                        "background": "#f9f9ff",
+                        "surface-container-highest": "#dce2f7",
+                        "on-surface-variant": "#5b403d",
+                        "inverse-surface": "#293040",
+                        "on-tertiary-fixed": "#001a42",
+                        "primary-container": "#db322f",
+                        "surface-dim": "#d3daef",
+                        "surface": "#f9f9ff",
+                        "primary-fixed-dim": "#ffb4ac",
+                        "primary-fixed": "#ffdad6",
+                        "error-container": "#ffdad6",
+                        "secondary": "#5f5e5e",
+                        "on-background": "#141b2b",
+                        "on-secondary-fixed-variant": "#474646",
+                        "secondary-container": "#e5e2e1",
+                        "on-secondary-container": "#656464",
+                        "secondary-fixed": "#e5e2e1",
+                        "on-tertiary-container": "#fefcff",
+                        "inverse-primary": "#ffb4ac",
+                        "on-primary-fixed-variant": "#93000d",
+                        "on-secondary": "#ffffff",
+                        "on-primary-container": "#fffbff",
+                        "on-tertiary-fixed-variant": "#004395",
+                        "surface-variant": "#dce2f7",
+                        "on-secondary-fixed": "#1c1b1b",
+                        "outline": "#906f6c",
+                        "primary": "#b7131a",
+                        "secondary-fixed-dim": "#c9c6c5",
+                        "tertiary": "#0058be",
+                        "on-primary": "#ffffff",
+                        "surface-container-low": "#f1f3ff",
+                        "surface-container-high": "#e1e8fd"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Inter"],
+                        "body": ["Inter"],
+                        "label": ["Inter"],
+                        "mono": ["JetBrains Mono"]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+            font-size: 20px;
+        }
+        .dot-grid {
+            background-image: radial-gradient(#d1d5db 0.5px, transparent 0.5px);
+            background-size: 24px 24px;
+            background-color: #ffffff;
+        }
+    </style>
+</head>
+<body class="bg-surface font-body text-on-surface">
+<!-- SideNavBar Shell -->
+<aside class="fixed left-0 top-0 h-full w-[240px] border-r border-gray-800 bg-[#0D0D0D] flex flex-col z-50 transition-all duration-150 ease-in-out">
+<div class="p-6">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 bg-[#E53935] flex items-center justify-center rounded">
+<span class="material-symbols-outlined text-white" style="font-variation-settings: 'FILL' 1;">security</span>
+</div>
+<div>
+<h1 class="text-xl font-bold tracking-tighter text-white font-['Inter']">SENTINEL</h1>
+<p class="text-[10px] text-gray-500 font-medium tracking-widest uppercase">Precision SOC</p>
+</div>
+</div>
+</div>
+<nav class="flex-1 mt-4 px-0">
+<a class="flex items-center px-6 py-3 space-x-3 text-gray-500 hover:text-gray-300 transition-colors hover:bg-[#1a1a1a]" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-['Inter'] font-medium text-[14px] tracking-tight">Dashboard</span>
+</a>
+<a class="flex items-center px-6 py-3 space-x-3 text-white bg-[#1a1a1a] border-l-[3px] border-[#E53935] font-semibold" href="#">
+<span class="material-symbols-outlined">security</span>
+<span class="font-['Inter'] font-medium text-[14px] tracking-tight">Threat Intelligence</span>
+</a>
+<a class="flex items-center px-6 py-3 space-x-3 text-gray-500 hover:text-gray-300 transition-colors hover:bg-[#1a1a1a]" href="#">
+<span class="material-symbols-outlined">warning</span>
+<span class="font-['Inter'] font-medium text-[14px] tracking-tight">Incidents</span>
+</a>
+<a class="flex items-center px-6 py-3 space-x-3 text-gray-500 hover:text-gray-300 transition-colors hover:bg-[#1a1a1a]" href="#">
+<span class="material-symbols-outlined">hub</span>
+<span class="font-['Inter'] font-medium text-[14px] tracking-tight">Network Map</span>
+</a>
+<a class="flex items-center px-6 py-3 space-x-3 text-gray-500 hover:text-gray-300 transition-colors hover:bg-[#1a1a1a]" href="#">
+<span class="material-symbols-outlined">terminal</span>
+<span class="font-['Inter'] font-medium text-[14px] tracking-tight">System Logs</span>
+</a>
+<a class="flex items-center px-6 py-3 space-x-3 text-gray-500 hover:text-gray-300 transition-colors hover:bg-[#1a1a1a]" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-['Inter'] font-medium text-[14px] tracking-tight">Settings</span>
+</a>
+</nav>
+<div class="p-6">
+<button class="w-full bg-[#E53935] text-white py-3 rounded-lg text-xs font-bold tracking-widest uppercase hover:bg-red-700 transition-all">
+                INITIATE SCAN
+            </button>
+</div>
+<div class="border-t border-gray-800 p-4 space-y-2">
+<a class="flex items-center px-2 py-2 text-gray-500 hover:text-white transition-colors text-[14px]" href="#">
+<span class="material-symbols-outlined mr-3">help_outline</span>
+                Support
+            </a>
+<a class="flex items-center px-2 py-2 text-gray-500 hover:text-white transition-colors text-[14px]" href="#">
+<span class="material-symbols-outlined mr-3">logout</span>
+                Sign Out
+            </a>
+</div>
+</aside>
+<!-- TopNavBar Shell -->
+<header class="fixed top-0 right-0 left-[240px] h-16 flex justify-between items-center px-6 z-40 bg-white/80 backdrop-blur-sm border-b border-gray-200">
+<div class="flex items-center gap-8">
+<h2 class="text-xl font-black text-gray-900 font-['Inter']">Detection Engine</h2>
+<div class="flex items-center bg-gray-50 rounded-lg px-3 py-1.5 border border-gray-200 focus-within:ring-1 focus-within:ring-[#E53935]">
+<span class="material-symbols-outlined text-gray-400 mr-2 text-[18px]">search</span>
+<input class="bg-transparent border-none p-0 text-[14px] focus:ring-0 text-gray-700 w-64" placeholder="Query threat database..." type="text"/>
+</div>
+</div>
+<div class="flex items-center space-x-6">
+<div class="flex items-center gap-4">
+<span class="text-[#E53935] font-bold border-b-2 border-[#E53935] text-[14px] font-['Inter'] py-5">SIM MODE</span>
+<span class="text-gray-500 font-['JetBrains_Mono'] text-[13px]">12:00:00 UTC</span>
+</div>
+<div class="flex items-center gap-4 border-l pl-6 border-gray-200">
+<button class="text-gray-500 hover:text-gray-900 transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<div class="flex items-center gap-2">
+<img class="w-8 h-8 rounded-full border border-gray-200" data-alt="Professional portrait of a male cybersecurity analyst with a neutral expression against a clean office background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA-DrH9ZWIV2zq3ijuABMcLmH8-I8ZEuAl_Up6MjIBJBv9NQPsL8SWaaeyTkmdHx78j2KgjRSNTZU0tRkI9rkWzHQJCHZ8C4oQf6afdnlPJm8PZjNlBckqvFrcLj8XVWJrW3W15lhLm1aLalkl520NF16LgXZRMpsd3DWydJHdEIqul6rs_Lrur1CKCJQvmAEkM9kGSesADVSiQVh_23sariHSAgMTPuSHV4CZnDCk0ZJPPK8o0VEBbN8Vnz05XS-6C2nCTotxCPN0"/>
+<span class="material-symbols-outlined text-gray-500">account_circle</span>
+</div>
+</div>
+</div>
+</header>
+<!-- Bottom Status Shell -->
+<footer class="fixed bottom-0 right-0 left-[240px] h-10 flex justify-start items-center px-6 space-x-8 z-40 bg-white border-t border-gray-200">
+<div class="flex items-center gap-2 text-gray-600 font-['JetBrains_Mono'] text-[11px] font-medium uppercase tracking-wider">
+<span class="material-symbols-outlined text-[14px]">memory</span>
+            CPU: 12%
+        </div>
+<div class="flex items-center gap-2 text-gray-600 font-['JetBrains_Mono'] text-[11px] font-medium uppercase tracking-wider">
+<span class="material-symbols-outlined text-[14px]">download</span>
+            Ingress: 1.2GB/s
+        </div>
+<div class="flex items-center gap-2 text-[#E53935] font-['JetBrains_Mono'] text-[11px] font-medium uppercase tracking-wider">
+<span class="material-symbols-outlined text-[14px]">speed</span>
+            Latency: 4ms
+        </div>
+</footer>
+<!-- Main Content Canvas -->
+<main class="ml-[240px] pt-24 pb-16 px-8 min-h-screen dot-grid">
+<div class="max-w-7xl mx-auto space-y-8">
+<!-- TOP SECTION: ML Models -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<!-- Isolation Forest -->
+<div class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+<div class="flex justify-between items-start mb-4">
+<h3 class="text-[11px] font-bold uppercase tracking-wider text-gray-500">Isolation Forest</h3>
+<span class="px-2 py-1 bg-[#DCFCE7] text-[#22C55E] text-[10px] font-bold rounded uppercase">Operational</span>
+</div>
+<div class="flex items-baseline gap-2">
+<span class="text-4xl font-bold text-[#E53935] tracking-tighter">96.8%</span>
+<span class="text-[11px] font-semibold text-gray-400 uppercase">Accuracy</span>
+</div>
+<p class="mt-2 text-xs text-gray-500 leading-relaxed">Anomaly detection via recursive partitioning.</p>
+</div>
+<!-- XGBoost -->
+<div class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+<div class="flex justify-between items-start mb-4">
+<h3 class="text-[11px] font-bold uppercase tracking-wider text-gray-500">XGBoost</h3>
+<span class="px-2 py-1 bg-[#DCFCE7] text-[#22C55E] text-[10px] font-bold rounded uppercase">Operational</span>
+</div>
+<div class="flex items-baseline gap-2">
+<span class="text-4xl font-bold text-[#E53935] tracking-tighter">98.2%</span>
+<span class="text-[11px] font-semibold text-gray-400 uppercase">Accuracy</span>
+</div>
+<p class="mt-2 text-xs text-gray-500 leading-relaxed">Gradient boosting for complex classification.</p>
+</div>
+<!-- LSTM -->
+<div class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+<div class="flex justify-between items-start mb-4">
+<h3 class="text-[11px] font-bold uppercase tracking-wider text-gray-500">LSTM RNN</h3>
+<span class="px-2 py-1 bg-[#DCFCE7] text-[#22C55E] text-[10px] font-bold rounded uppercase">Operational</span>
+</div>
+<div class="flex items-baseline gap-2">
+<span class="text-4xl font-bold text-[#E53935] tracking-tighter">94.5%</span>
+<span class="text-[11px] font-semibold text-gray-400 uppercase">Accuracy</span>
+</div>
+<p class="mt-2 text-xs text-gray-500 leading-relaxed">Temporal sequence analysis for slow leaks.</p>
+</div>
+</div>
+<!-- SPARKLINE CARDS -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+<div class="bg-[#FAFAFA] p-4 border border-gray-200 rounded-lg">
+<div class="flex justify-between items-center mb-2">
+<span class="text-[11px] font-bold uppercase text-gray-600">Brute Force</span>
+<span class="text-[11px] font-mono font-bold text-gray-900">24/hr</span>
+</div>
+<svg class="w-full h-8" viewbox="0 0 100 20">
+<path d="M0 15 L10 12 L20 18 L30 10 L40 14 L50 4 L60 8 L70 2 L80 12 L90 6 L100 14" fill="none" stroke="#E53935" stroke-width="2"></path>
+</svg>
+</div>
+<div class="bg-[#FAFAFA] p-4 border border-gray-200 rounded-lg">
+<div class="flex justify-between items-center mb-2">
+<span class="text-[11px] font-bold uppercase text-gray-600">Lateral Move</span>
+<span class="text-[11px] font-mono font-bold text-gray-900">03/hr</span>
+</div>
+<svg class="w-full h-8" viewbox="0 0 100 20">
+<path d="M0 18 L10 18 L20 17 L30 18 L40 16 L50 17 L60 15 L70 16 L80 10 L90 12 L100 8" fill="none" stroke="#E53935" stroke-width="2"></path>
+</svg>
+</div>
+<div class="bg-[#FAFAFA] p-4 border border-gray-200 rounded-lg">
+<div class="flex justify-between items-center mb-2">
+<span class="text-[11px] font-bold uppercase text-gray-600">SQL Injection</span>
+<span class="text-[11px] font-mono font-bold text-gray-900">12/hr</span>
+</div>
+<svg class="w-full h-8" viewbox="0 0 100 20">
+<path d="M0 10 L10 5 L20 12 L30 3 L40 15 L50 8 L60 12 L70 18 L80 4 L90 10 L100 15" fill="none" stroke="#E53935" stroke-width="2"></path>
+</svg>
+</div>
+<div class="bg-[#FAFAFA] p-4 border border-gray-200 rounded-lg">
+<div class="flex justify-between items-center mb-2">
+<span class="text-[11px] font-bold uppercase text-gray-600">Data Exfil</span>
+<span class="text-[11px] font-mono font-bold text-gray-900">01/hr</span>
+</div>
+<svg class="w-full h-8" viewbox="0 0 100 20">
+<path d="M0 18 L20 18 L40 18 L60 17 L80 17 L90 5 L100 18" fill="none" stroke="#E53935" stroke-width="2"></path>
+</svg>
+</div>
+</div>
+<!-- LAYER TABS -->
+<div class="flex space-x-8 border-b-2 border-gray-900">
+<button class="pb-3 text-[12px] font-bold uppercase tracking-widest text-[#E53935] border-b-4 border-[#E53935] -mb-1">Network</button>
+<button class="pb-3 text-[12px] font-bold uppercase tracking-widest text-gray-400 hover:text-gray-900 transition-colors">Endpoint</button>
+<button class="pb-3 text-[12px] font-bold uppercase tracking-widest text-gray-400 hover:text-gray-900 transition-colors">Application</button>
+</div>
+<!-- BOTTOM LAYOUT -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+<!-- Left: Ingress Pulse -->
+<div class="lg:col-span-7 bg-white border border-gray-200 rounded-xl overflow-hidden flex flex-col h-[500px]">
+<div class="p-4 bg-[#FAFAFA] border-b border-gray-200 flex justify-between items-center">
+<h3 class="text-[11px] font-bold uppercase tracking-wider">Ingress Pulse</h3>
+<span class="text-[10px] font-mono text-gray-400">STREAMING ACTIVE</span>
+</div>
+<div class="flex-1 overflow-y-auto p-0 font-mono text-[12px]">
+<div class="px-4 py-3 border-b border-gray-50 flex gap-4 text-gray-500 hover:bg-gray-50 transition-colors">
+<span class="w-24 shrink-0">12:04:12.01</span>
+<span class="text-blue-600 shrink-0">TCP_IN</span>
+<span class="truncate">192.168.1.105:443 -&gt; 88.214.12.10:59024 [ACK, PSH]</span>
+</div>
+<div class="px-4 py-3 border-b border-gray-50 flex gap-4 text-gray-500 hover:bg-gray-50 transition-colors">
+<span class="w-24 shrink-0">12:04:11.89</span>
+<span class="text-gray-600 shrink-0">UDP_OUT</span>
+<span class="truncate">8.8.8.8:53 -&gt; 192.168.1.1:53211 [DNS_QUERY]</span>
+</div>
+<div class="px-4 py-3 border-b border-gray-50 flex gap-4 bg-[#FFF1F0] border-l-[3px] border-[#E53935] text-on-surface">
+<span class="w-24 shrink-0 font-bold">12:04:10.42</span>
+<span class="text-[#E53935] font-bold shrink-0">CRIT_TRAP</span>
+<span class="truncate font-medium">Potential Brute Force detected from 45.12.221.09 on port 22</span>
+</div>
+<div class="px-4 py-3 border-b border-gray-50 flex gap-4 text-gray-500 hover:bg-gray-50 transition-colors">
+<span class="w-24 shrink-0">12:04:09.11</span>
+<span class="text-blue-600 shrink-0">TCP_IN</span>
+<span class="truncate">10.0.0.12:8080 -&gt; 192.168.1.44:3219 [SYN]</span>
+</div>
+<div class="px-4 py-3 border-b border-gray-50 flex gap-4 text-gray-500 hover:bg-gray-50 transition-colors">
+<span class="w-24 shrink-0">12:04:08.55</span>
+<span class="text-gray-600 shrink-0">ICMP_0</span>
+<span class="truncate">Echo Request: 192.168.1.1 -&gt; 192.168.1.100</span>
+</div>
+<div class="px-4 py-3 border-b border-gray-50 flex gap-4 text-gray-500 hover:bg-gray-50 transition-colors">
+<span class="w-24 shrink-0">12:04:07.22</span>
+<span class="text-blue-600 shrink-0">TCP_OUT</span>
+<span class="truncate">Internal Audit: System Check Completed</span>
+</div>
+<div class="px-4 py-3 border-b border-gray-50 flex gap-4 text-gray-500 hover:bg-gray-50 transition-colors">
+<span class="w-24 shrink-0">12:04:06.90</span>
+<span class="text-blue-600 shrink-0">TCP_IN</span>
+<span class="truncate">192.168.1.105:443 -&gt; 88.214.12.10:59024 [FIN]</span>
+</div>
+</div>
+</div>
+<!-- Right: Event Detail -->
+<div class="lg:col-span-5 bg-white border border-gray-200 rounded-xl p-6 shadow-sm flex flex-col">
+<div class="flex justify-between items-center mb-6">
+<h3 class="text-[11px] font-bold uppercase tracking-wider text-gray-500">Event Detail</h3>
+<span class="px-2 py-1 bg-[#FEE2E2] text-[#E53935] text-[10px] font-bold rounded">LEVEL 4 ALERT</span>
+</div>
+<div class="mb-6">
+<span class="text-[11px] font-semibold text-gray-400 uppercase block mb-1">Confidence Score</span>
+<h3 class="text-5xl font-bold text-[#E53935] tracking-tighter">46%</h3>
+</div>
+<div class="mb-8">
+<h4 class="text-[11px] font-bold uppercase text-gray-900 mb-3 border-b-2 border-gray-900 inline-block">Automated Analysis</h4>
+<p class="text-[14px] text-gray-700 leading-relaxed font-normal">
+                            Heuristic signature matching identifies high-frequency connection attempts originating from a known malicious IP subnet. Sequence analysis suggests a credential stuffing attempt against the primary SSH gateway. No successful handshake recorded in the last 400ms window.
+                        </p>
+</div>
+<div class="mt-auto">
+<h4 class="text-[11px] font-bold uppercase text-gray-900 mb-4">Technical Trace</h4>
+<div class="grid grid-cols-2 gap-px bg-gray-200 border border-gray-200 rounded overflow-hidden">
+<div class="bg-[#FAFAFA] p-3">
+<span class="text-[10px] font-bold text-gray-400 uppercase block">Bytes</span>
+<span class="font-mono text-[13px] text-gray-900">4,204 KB</span>
+</div>
+<div class="bg-[#FAFAFA] p-3">
+<span class="text-[10px] font-bold text-gray-400 uppercase block">Flags</span>
+<span class="font-mono text-[13px] text-[#E53935]">SYN, RST</span>
+</div>
+<div class="bg-[#FAFAFA] p-3">
+<span class="text-[10px] font-bold text-gray-400 uppercase block">TTL</span>
+<span class="font-mono text-[13px] text-gray-900">64</span>
+</div>
+<div class="bg-[#FAFAFA] p-3">
+<span class="text-[10px] font-bold text-gray-400 uppercase block">Checksum</span>
+<span class="font-mono text-[13px] text-gray-900">0xAF32</span>
+</div>
+</div>
+</div>
+<div class="mt-6 flex gap-3">
+<button class="flex-1 bg-[#E53935] text-white py-2 rounded text-[11px] font-bold uppercase tracking-wider">QUARANTINE IP</button>
+<button class="flex-1 bg-white border border-gray-200 text-gray-900 py-2 rounded text-[11px] font-bold uppercase tracking-wider">DISMISS</button>
+</div>
+</div>
+</div>
+</div>
+</main>
+</body></html>

@@ -284,3 +284,19 @@ class DetectionEngine:
                     ]
                 }
         return None
+
+    def mitigate_entity(self, entity_id: str):
+        """Add an entity to the kill switch (blocked list)."""
+        self.mitigated_entities.add(entity_id)
+
+    def reset_protections(self):
+        """Clear all mitigated entities (called when auto-remediation is disabled)."""
+        self.mitigated_entities.clear()
+
+    def mitigate_entity(self, entity_id: str):
+        """Add an entity to the kill switch (blocked list)."""
+        self.mitigated_entities.add(entity_id)
+
+    def reset_protections(self):
+        """Clear all mitigated entities (called when auto-remediation is disabled)."""
+        self.mitigated_entities.clear()

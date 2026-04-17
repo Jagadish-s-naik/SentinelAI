@@ -46,6 +46,10 @@ pipeline_metrics = {
     "auto_remediation": True # Default ON for safety simulation
 }
 
+# In-Memory Incident Store — ultra-fast, no DB dependency
+in_memory_incidents: List[Dict[str, Any]] = []
+MAX_INCIDENT_BUFFER = 500
+
 class LogEntry(BaseModel):
     raw: str
     layer: str = "network"
@@ -82,13 +86,18 @@ async def process_normalized_event(event: Dict[str, Any]):
 
     # 3. Alert Phase (If ML model triggers)
     if alert:
+        import uuid
         print(f"[PIPELINE] ALERT: {alert['type']} (Confidence: {alert['confidence']}%)")
+        
+        incident_id = str(uuid.uuid4())
         
         # Format for React Frontend Schema (Requirement 8)
         incident_data = {
-            "timestamp": datetime.now().isoformat(),
+            "id": incident_id,
+            "timestamp": datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ'),
             "layer": event["layer"],
             "type": alert["type"],
+            "title": alert["type"].replace("_", " ").title(),
             "severity": alert["severity"],
             "explanation": alert["explanation"],
             "mitre_tag": alert["mitre_tag"],
@@ -97,21 +106,55 @@ async def process_normalized_event(event: Dict[str, Any]):
             "confidence": alert["confidence"],
             "is_false_positive": alert.get("is_false_positive", False),
             "shap_features": alert["shap_features"],
-            "status": "ACTIVE"
+            "status": "ACTIVE",
+            "history": [
+                {
+                    "time": datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ'),
+                    "action": f"Incident Detected: {alert['type'].replace('_', ' ').title()}",
+                    "status": "ANALYZING"
+                }
+            ]
         }
         
-        await asyncio.to_thread(supabase.table("incidents").insert(incident_data).execute)
+        # ✅ PRIMARY: Store in-memory (always works, no DB dependency)
+        in_memory_incidents.insert(0, incident_data)
+        if len(in_memory_incidents) > MAX_INCIDENT_BUFFER:
+            in_memory_incidents.pop()
+
+        # SECONDARY: Push to Supabase (best-effort)
+        supabase_payload = incident_data.copy()
+        try:
+            await asyncio.to_thread(supabase.table("incidents").insert(supabase_payload).execute)
+        except Exception as e:
+            print(f"[PIPELINE] Supabase incident insert skipped: {e}")
 
         # 4. Auto-Remediation Phase (Requirement 7)
         if pipeline_metrics["auto_remediation"] and not alert.get("is_false_positive"):
             print(f"[PROTECTION] Auto-Mitigation Triggered for {incident_data['src_ip']} (Reason: {alert['type']})")
             engine.mitigate_entity(incident_data['src_ip'])
+            # Mirror mitigation in in-memory store
+            mitigation_entry = {
+                "time": datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ'),
+                "action": f"Automated Mitigation Triggered: Network Block Enforced",
+                "status": "COMPLETED"
+            }
+            for inc in in_memory_incidents:
+                if inc['id'] == incident_id:
+                    inc['status'] = 'MITIGATED'
+                    inc['explanation'] = alert['explanation'] + ' [AUTO-BLOCKED BY SENTINEL]'
+                    inc['history'].append(mitigation_entry)
             
-            # Update incident status to MITIGATED in background
-            # Simplified: In a real app we'd wait for specific automation confirmation
-            await asyncio.to_thread(supabase.table("incidents")
-                .update({"status": "MITIGATED", "explanation": alert["explanation"] + " [AUTO-BLOCKED BY SENTINEL]"})
-                .eq("src_ip", incident_data['src_ip']).execute)
+            # Best-effort Supabase update
+            try:
+                await asyncio.to_thread(supabase.table("incidents")
+                    .update({
+                        "status": "MITIGATED", 
+                        "explanation": alert["explanation"] + " [AUTO-BLOCKED BY SENTINEL]",
+                        "history": [h for h in incident_data['history']] + [mitigation_entry]
+                    })
+                    .eq("id", incident_id).execute)
+            except Exception as e:
+                print(f"[PIPELINE] Supabase mitigation update skipped: {e}")
 
 @app.get("/health")
 def health_check():
@@ -141,6 +184,25 @@ async def get_stats():
         "auto_remediation": pipeline_metrics["auto_remediation"],
         "mitigated_entities": list(engine.mitigated_entities)
     }
+
+@app.get("/incidents")
+async def get_incidents(limit: int = 100):
+    """Backend-first incident feed. Used by frontend when Supabase is unavailable."""
+    return {"incidents": in_memory_incidents[:limit]}
+
+@app.patch("/incidents/{incident_id}")
+async def update_incident(incident_id: str, update: dict):
+    """Update an incident's status/history in memory (e.g., MITIGATED)."""
+    for inc in in_memory_incidents:
+        if inc['id'] == incident_id:
+            inc.update(update)
+            # Best-effort Supabase sync
+            try:
+                await asyncio.to_thread(supabase.table("incidents").update(update).eq("id", incident_id).execute)
+            except:
+                pass
+            return {"success": True, "incident": inc}
+    return {"error": "Incident not found"}
 
 @app.get("/graph/{entity_id}")
 async def get_incident_graph(entity_id: str, depth: int = 2):

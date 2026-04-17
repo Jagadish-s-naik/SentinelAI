@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>SentinelAI - Playbook Commander</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary-container": "#2170e4",
+                        "tertiary-fixed-dim": "#adc6ff",
+                        "outline-variant": "#e4beb9",
+                        "on-error-container": "#93000a",
+                        "error": "#ba1a1a",
+                        "surface-tint": "#bb171c",
+                        "on-error": "#ffffff",
+                        "inverse-on-surface": "#edf0ff",
+                        "on-surface": "#141b2b",
+                        "tertiary-fixed": "#d8e2ff",
+                        "surface-container": "#e9edff",
+                        "surface-bright": "#f9f9ff",
+                        "on-tertiary": "#ffffff",
+                        "on-primary-fixed": "#410002",
+                        "background": "#f9f9ff",
+                        "surface-container-highest": "#dce2f7",
+                        "on-surface-variant": "#5b403d",
+                        "inverse-surface": "#293040",
+                        "on-tertiary-fixed": "#001a42",
+                        "primary-container": "#db322f",
+                        "surface-dim": "#d3daef",
+                        "surface": "#f9f9ff",
+                        "primary-fixed-dim": "#ffb4ac",
+                        "primary-fixed": "#ffdad6",
+                        "error-container": "#ffdad6",
+                        "secondary": "#5f5e5e",
+                        "on-background": "#141b2b",
+                        "on-secondary-fixed-variant": "#474646",
+                        "secondary-container": "#e5e2e1",
+                        "on-secondary-container": "#656464",
+                        "secondary-fixed": "#e5e2e1",
+                        "on-tertiary-container": "#fefcff",
+                        "inverse-primary": "#ffb4ac",
+                        "on-primary-fixed-variant": "#93000d",
+                        "on-secondary": "#ffffff",
+                        "on-primary-container": "#fffbff",
+                        "on-tertiary-fixed-variant": "#004395",
+                        "surface-variant": "#dce2f7",
+                        "on-secondary-fixed": "#1c1b1b",
+                        "outline": "#906f6c",
+                        "primary": "#b7131a",
+                        "secondary-fixed-dim": "#c9c6c5",
+                        "tertiary": "#0058be",
+                        "on-primary": "#ffffff",
+                        "surface-container-low": "#f1f3ff",
+                        "surface-container-high": "#e1e8fd"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Inter"],
+                        "body": ["Inter"],
+                        "label": ["Inter"],
+                        "mono": ["JetBrains Mono"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .dot-grid {
+            background-image: radial-gradient(#d1d5db 0.5px, transparent 0.5px);
+            background-size: 24px 24px;
+            background-color: #ffffff;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-surface font-body text-on-surface antialiased overflow-hidden">
+<!-- SideNavBar Shell -->
+<aside class="fixed left-0 top-0 h-full w-[240px] bg-[#0D0D0D] border-r border-gray-800 flex flex-col z-50">
+<div class="p-6">
+<div class="flex items-center space-x-3 mb-10">
+<div class="w-8 h-8 bg-primary flex items-center justify-center rounded-lg">
+<span class="material-symbols-outlined text-white text-xl" style="font-variation-settings: 'FILL' 1;">hexagon</span>
+</div>
+<div>
+<h1 class="text-xl font-bold tracking-tighter text-white font-headline">SENTINEL</h1>
+<p class="text-[10px] uppercase tracking-widest text-gray-500 font-semibold">Precision SOC</p>
+</div>
+</div>
+<nav class="space-y-1">
+<a class="flex items-center px-4 py-3 text-gray-500 hover:text-white hover:bg-[#1a1a1a] transition-all duration-150 ease-in-out font-medium text-[14px] tracking-tight rounded-lg" href="#">
+<span class="material-symbols-outlined mr-3">dashboard</span> Dashboard
+                </a>
+<a class="flex items-center px-4 py-3 text-gray-500 hover:text-white hover:bg-[#1a1a1a] transition-all duration-150 ease-in-out font-medium text-[14px] tracking-tight rounded-lg" href="#">
+<span class="material-symbols-outlined mr-3">security</span> Threat Intelligence
+                </a>
+<a class="flex items-center px-4 py-3 text-white bg-[#1a1a1a] border-l-[3px] border-[#E53935] font-semibold text-[14px] tracking-tight" href="#">
+<span class="material-symbols-outlined mr-3" style="font-variation-settings: 'FILL' 1;">warning</span> Incidents
+                </a>
+<a class="flex items-center px-4 py-3 text-gray-500 hover:text-white hover:bg-[#1a1a1a] transition-all duration-150 ease-in-out font-medium text-[14px] tracking-tight rounded-lg" href="#">
+<span class="material-symbols-outlined mr-3">hub</span> Network Map
+                </a>
+<a class="flex items-center px-4 py-3 text-gray-500 hover:text-white hover:bg-[#1a1a1a] transition-all duration-150 ease-in-out font-medium text-[14px] tracking-tight rounded-lg" href="#">
+<span class="material-symbols-outlined mr-3">terminal</span> System Logs
+                </a>
+<a class="flex items-center px-4 py-3 text-gray-500 hover:text-white hover:bg-[#1a1a1a] transition-all duration-150 ease-in-out font-medium text-[14px] tracking-tight rounded-lg" href="#">
+<span class="material-symbols-outlined mr-3">settings</span> Settings
+                </a>
+</nav>
+<div class="mt-10 px-4">
+<button class="w-full bg-primary text-white py-3 rounded-xl font-bold text-xs tracking-widest uppercase hover:bg-red-700 transition-colors">
+                    INITIATE SCAN
+                </button>
+</div>
+</div>
+<div class="mt-auto p-6 border-t border-gray-800">
+<a class="flex items-center px-4 py-2 text-gray-500 hover:text-white transition-colors text-[14px]" href="#">
+<span class="material-symbols-outlined mr-3">help_outline</span> Support
+            </a>
+<a class="flex items-center px-4 py-2 text-gray-500 hover:text-white transition-colors text-[14px]" href="#">
+<span class="material-symbols-outlined mr-3">logout</span> Sign Out
+            </a>
+</div>
+</aside>
+<!-- TopNavBar Shell -->
+<header class="fixed top-0 right-0 left-[240px] h-16 flex justify-between items-center px-8 z-40 bg-white/80 backdrop-blur-sm border-b border-gray-200">
+<div class="flex items-center space-x-6">
+<button class="text-gray-400 hover:text-on-surface">
+<span class="material-symbols-outlined">arrow_back</span>
+</button>
+<div class="flex items-center space-x-2">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">play_circle</span>
+<h2 class="text-2xl font-bold tracking-tight text-gray-900 font-headline">Playbook Commander</h2>
+</div>
+</div>
+<div class="flex items-center space-x-4">
+<span class="font-mono text-xs text-gray-500">12:44:02 UTC</span>
+<button class="px-5 py-2 bg-surface-container text-on-surface text-xs font-bold uppercase tracking-widest border border-gray-200 rounded hover:bg-gray-100 transition-colors">
+                Resolve Incident
+            </button>
+<div class="w-8 h-8 rounded-full bg-gray-200 overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="professional male security analyst headshot with neutral lighting and gray background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuATQl0tPcO7zCA-S1FgR1sGDOFUr5NyV5mB-OzCpQTRqwlQNRsdF_T5iketZTJr6bqgHXpp8ljN7k_soG08ARIIp8mVC-ImfDjLXHCTVG2QB9EoqdoA45eDLAP7-cqEN0Q987uJfUoSaeSVYV_OyWyI78gdwDiV5LAXHshSllULgkTSlN7VzV0GZr1dkC-4VGu7qV2K8nE0WluEFTuZ-lhNZSAoLJFGg-mcCtlvPaf9Dq1c2WeOtJV6kRZrZwG-iq-63-osCPEGmfc"/>
+</div>
+</div>
+</header>
+<!-- Main Canvas Area -->
+<main class="ml-[240px] pt-16 h-screen dot-grid flex overflow-hidden">
+<!-- Left: Active Response Queue (28%) -->
+<section class="w-[28%] h-full border-r border-gray-200 flex flex-col bg-white/50 backdrop-blur-sm">
+<div class="p-6 border-b border-black border-b-2">
+<h3 class="text-[11px] font-bold uppercase tracking-wider text-on-surface">Active Response Queue</h3>
+</div>
+<div class="flex-1 overflow-y-auto">
+<!-- Card 1: Active -->
+<div class="p-5 border-b border-gray-100 bg-[#FAFAFA] relative">
+<div class="absolute left-0 top-0 bottom-0 w-1 bg-primary"></div>
+<div class="flex justify-between items-start mb-2">
+<span class="px-2 py-0.5 bg-red-100 text-primary text-[10px] font-bold rounded uppercase tracking-wider">Critical</span>
+<span class="font-mono text-[11px] text-gray-400">#INC-9902</span>
+</div>
+<h4 class="font-bold text-sm mb-1">Brute Force Discovery</h4>
+<p class="font-mono text-[12px] text-primary mb-3">192.168.1.105</p>
+<div class="flex items-center text-[11px] text-gray-500">
+<span class="material-symbols-outlined text-xs mr-1">schedule</span> 0m 42s elapsed
+                    </div>
+</div>
+<!-- Card 2 -->
+<div class="p-5 border-b border-gray-100 hover:bg-surface-container-low transition-colors cursor-pointer">
+<div class="flex justify-between items-start mb-2">
+<span class="px-2 py-0.5 bg-orange-100 text-orange-600 text-[10px] font-bold rounded uppercase tracking-wider">High</span>
+<span class="font-mono text-[11px] text-gray-400">#INC-9884</span>
+</div>
+<h4 class="font-bold text-sm mb-1">C2 Beacon Detected</h4>
+<p class="font-mono text-[12px] text-gray-600 mb-3">10.0.4.22</p>
+<div class="flex items-center text-[11px] text-gray-500">
+<span class="material-symbols-outlined text-xs mr-1">schedule</span> 14m 10s elapsed
+                    </div>
+</div>
+<!-- Card 3 -->
+<div class="p-5 border-b border-gray-100 hover:bg-surface-container-low transition-colors cursor-pointer">
+<div class="flex justify-between items-start mb-2">
+<span class="px-2 py-0.5 bg-blue-100 text-blue-600 text-[10px] font-bold rounded uppercase tracking-wider">Medium</span>
+<span class="font-mono text-[11px] text-gray-400">#INC-9872</span>
+</div>
+<h4 class="font-bold text-sm mb-1">Lateral Movement Attempt</h4>
+<p class="font-mono text-[12px] text-gray-600 mb-3">172.16.254.1</p>
+<div class="flex items-center text-[11px] text-gray-500">
+<span class="material-symbols-outlined text-xs mr-1">schedule</span> 1h 05m elapsed
+                    </div>
+</div>
+</div>
+</section>
+<!-- Right: Playbook View (72%) -->
+<section class="w-[72%] h-full flex flex-col p-8 overflow-hidden">
+<!-- Top Action Bar -->
+<div class="flex justify-between items-end mb-8">
+<div>
+<div class="flex items-center space-x-2 mb-1">
+<span class="text-primary material-symbols-outlined text-xl">bolt</span>
+<h2 class="text-2xl font-black tracking-tighter uppercase font-headline">Brute Force Strategy</h2>
+</div>
+<p class="text-gray-500 text-sm">Automated mitigation workflow for high-volume authentication failure events.</p>
+</div>
+<button class="bg-primary text-white px-8 py-3 rounded font-black text-sm tracking-widest uppercase shadow-lg shadow-red-500/20 hover:scale-[1.02] transition-transform">
+                    START ORCHESTRATION
+                </button>
+</div>
+<div class="flex-1 grid grid-cols-12 gap-6 overflow-hidden">
+<!-- Center: Vertical Steps (8 cols) -->
+<div class="col-span-8 flex flex-col space-y-4 overflow-y-auto pb-20 pr-2">
+<!-- Step 1 -->
+<div class="bg-white border border-gray-100 p-6 rounded-lg shadow-sm flex items-start space-x-4">
+<div class="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-white text-lg">check</span>
+</div>
+<div class="flex-1">
+<div class="flex justify-between mb-1">
+<h4 class="text-[11px] font-bold uppercase tracking-widest text-gray-400">Phase 01: Identification</h4>
+<span class="font-mono text-[10px] text-green-600">COMPLETED</span>
+</div>
+<h3 class="text-lg font-bold mb-2">VERIFY ATTACK SIGNATURES</h3>
+<p class="text-gray-600 text-sm leading-relaxed">Cross-referencing failed login attempts against known bad IPs and checking for pattern consistency across multiple endpoints.</p>
+</div>
+</div>
+<!-- Step 2 -->
+<div class="bg-white border-2 border-primary p-6 rounded-lg shadow-md flex items-start space-x-4">
+<div class="w-8 h-8 rounded-full border-2 border-primary flex items-center justify-center shrink-0 animate-pulse">
+<div class="w-2 h-2 bg-primary rounded-full"></div>
+</div>
+<div class="flex-1">
+<div class="flex justify-between mb-1">
+<h4 class="text-[11px] font-bold uppercase tracking-widest text-primary">Phase 02: Containment</h4>
+<span class="font-mono text-[10px] text-primary">IN PROGRESS</span>
+</div>
+<h3 class="text-lg font-bold mb-2">ISOLATE TARGET ACCOUNT</h3>
+<p class="text-gray-600 text-sm leading-relaxed">Temporarily disabling 'admin_service' and forcing session invalidation across all active nodes to prevent further penetration.</p>
+<div class="mt-4 p-4 bg-surface-container-low rounded border border-gray-200">
+<label class="flex items-center space-x-3 cursor-pointer">
+<input class="w-4 h-4 text-primary rounded focus:ring-primary border-gray-300" type="checkbox"/>
+<span class="text-xs font-bold uppercase text-gray-700">Manually Confirm Account Lockdown</span>
+</label>
+</div>
+</div>
+</div>
+<!-- Step 3 -->
+<div class="bg-white border border-gray-100 p-6 rounded-lg shadow-sm opacity-50 flex items-start space-x-4">
+<div class="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center shrink-0">
+<span class="text-[10px] font-bold text-gray-400">03</span>
+</div>
+<div class="flex-1">
+<div class="flex justify-between mb-1">
+<h4 class="text-[11px] font-bold uppercase tracking-widest text-gray-400">Phase 03: Eradication</h4>
+<span class="font-mono text-[10px] text-gray-400">PENDING</span>
+</div>
+<h3 class="text-lg font-bold mb-2">BLOCK ATTACKER IP AT FIREWALL</h3>
+<p class="text-gray-600 text-sm leading-relaxed">Injecting deny rule for 192.168.1.105 into edge firewall and cloud security groups.</p>
+</div>
+</div>
+<!-- Step 4 -->
+<div class="bg-white border border-gray-100 p-6 rounded-lg shadow-sm opacity-50 flex items-start space-x-4">
+<div class="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center shrink-0">
+<span class="text-[10px] font-bold text-gray-400">04</span>
+</div>
+<div class="flex-1">
+<div class="flex justify-between mb-1">
+<h4 class="text-[11px] font-bold uppercase tracking-widest text-gray-400">Phase 04: Recovery</h4>
+<span class="font-mono text-[10px] text-gray-400">PENDING</span>
+</div>
+<h3 class="text-lg font-bold mb-2">ROTATE CREDENTIALS</h3>
+<p class="text-gray-600 text-sm leading-relaxed">Triggering automated password reset for affected service accounts and logging for compliance audit.</p>
+</div>
+</div>
+</div>
+<!-- Right Sidebar: Console & Warning (4 cols) -->
+<div class="col-span-4 flex flex-col space-y-6">
+<!-- Console -->
+<div class="flex-1 bg-[#0D0D0D] rounded-lg p-5 flex flex-col shadow-2xl">
+<div class="flex justify-between items-center mb-4 border-b border-gray-800 pb-3">
+<h4 class="text-[11px] font-bold uppercase tracking-widest text-gray-400">Execution Console</h4>
+<div class="flex space-x-1.5">
+<div class="w-2.5 h-2.5 rounded-full bg-red-500/20"></div>
+<div class="w-2.5 h-2.5 rounded-full bg-yellow-500/20"></div>
+<div class="w-2.5 h-2.5 rounded-full bg-green-500/80"></div>
+</div>
+</div>
+<div class="flex-1 font-mono text-[12px] space-y-2 overflow-y-auto text-green-500/90 leading-relaxed">
+<p><span class="text-gray-600">[01:53:40]</span> <span class="text-white">INITIALIZING PLAYBOOK...</span></p>
+<p><span class="text-gray-600">[01:53:42]</span> LOADED MODULE: brute_force_mitigation_v2</p>
+<p><span class="text-gray-600">[01:53:45]</span> FETCHING ASSET DATA FOR 'ADMIN_SVC'</p>
+<p><span class="text-gray-600">[01:53:48]</span> <span class="text-yellow-400">WARNING:</span> HIGH LATENCY ON AWS-EAST-1</p>
+<p><span class="text-gray-600">[01:53:50]</span> IDENTIFICATION PHASE COMPLETE.</p>
+<p><span class="text-gray-600">[01:53:55]</span> COMMENCING PHASE 02: CONTAINMENT</p>
+<p><span class="text-gray-600">[01:54:02]</span> <span class="text-white">WAITING FOR ANALYST CONFIRMATION...</span></p>
+<p class="animate-pulse">_</p>
+</div>
+</div>
+<!-- Warning Card -->
+<div class="bg-orange-50 border-2 border-orange-200 p-5 rounded-lg">
+<div class="flex items-center space-x-2 mb-3 text-orange-700">
+<span class="material-symbols-outlined text-lg">warning</span>
+<h4 class="text-xs font-black uppercase tracking-widest">Escalation Threshold</h4>
+</div>
+<p class="text-xs text-orange-900 font-medium mb-3">If containment is not achieved within 300s, this playbook will automatically escalate to the Global CISO response team.</p>
+<div class="h-2 w-full bg-orange-200 rounded-full overflow-hidden">
+<div class="h-full bg-orange-600 w-1/4"></div>
+</div>
+<div class="flex justify-between mt-2 font-mono text-[10px] text-orange-700">
+<span>0s</span>
+<span>42s / 300s</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar Shell -->
+<footer class="fixed bottom-0 right-0 left-[240px] h-10 flex justify-start items-center px-8 space-x-8 z-40 bg-white border-t border-gray-200">
+<div class="flex items-center text-gray-600 font-mono text-[11px] font-medium uppercase tracking-wider">
+<span class="material-symbols-outlined text-sm mr-2">memory</span>
+            CPU: 12%
+        </div>
+<div class="flex items-center text-gray-600 font-mono text-[11px] font-medium uppercase tracking-wider">
+<span class="material-symbols-outlined text-sm mr-2">download</span>
+            Ingress: 1.2GB/s
+        </div>
+<div class="flex items-center text-primary font-mono text-[11px] font-medium uppercase tracking-wider">
+<span class="material-symbols-outlined text-sm mr-2">speed</span>
+            Latency: 4ms
+        </div>
+<div class="ml-auto text-gray-400 font-mono text-[10px]">
+            ACTIVE PLAYBOOK: PF-BRUTE-FORCE-2024
+        </div>
+</footer>
+</body></html>

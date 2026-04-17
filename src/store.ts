@@ -31,6 +31,7 @@ interface AppState {
   triggerSimulation: (scenarioId: string) => Promise<void>;
   spawnCorrelationSignals: () => Promise<void>;
   runThroughputStressTest: () => Promise<void>;
+  fetchBackendIncidents: () => Promise<void>;
   
   // Search State
   searchResults: {
@@ -42,6 +43,8 @@ interface AppState {
   // Initializers
   initialize: () => Promise<void>;
   fetchStats: () => Promise<void>;
+  toggleAutoRemediation: (enabled: boolean) => Promise<void>;
+  injectManualLog: (raw: string, layer?: string) => Promise<void>;
 }
 
 const defaultSettings: SystemSettings = {
@@ -72,15 +75,46 @@ export const useStore = create<AppState>((set, get) => ({
   searchResults: { incidents: [], techniques: [] },
 
   initialize: async () => {
-    // Fetch initial data
-    const [{ data: incidents }, { data: logs }, { data: settings }] = await Promise.all([
-      supabase.from('incidents').select('*').order('timestamp', { ascending: false }).limit(100),
+    // Fetch initial data from backend (primary) and Supabase (secondary)
+    const fetchAndMerge = async () => {
+      // Backend incidents always take priority (in-memory, no DB dependency)
+      let backendIncidents: SecurityEvent[] = [];
+      try {
+        const res = await fetch('http://localhost:8001/incidents?limit=200');
+        const data = await res.json();
+        backendIncidents = data.incidents || [];
+      } catch (e) {
+        console.debug('[STORE] Backend incident fetch failed, using Supabase only');
+      }
+
+      // Supabase as secondary/fallback persistence layer
+      let supabaseIncidents: SecurityEvent[] = [];
+      try {
+        const { data } = await supabase.from('incidents').select('*').order('timestamp', { ascending: false }).limit(100);
+        supabaseIncidents = data || [];
+      } catch (e) {
+        console.debug('[STORE] Supabase incident fetch failed');
+      }
+
+      // Merge: backend takes priority, fill in any from Supabase not already in backend
+      const backendIds = new Set(backendIncidents.map(i => i.id));
+      const merged = [
+        ...backendIncidents,
+        ...supabaseIncidents.filter(i => !backendIds.has(i.id))
+      ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+      set({ incidents: merged.slice(0, 500) });
+    };
+
+    await fetchAndMerge();
+
+    // Fetch logs and settings
+    const [{ data: logs }, { data: settings }] = await Promise.all([
       supabase.from('raw_logs').select('*').order('timestamp', { ascending: false }).limit(100),
       supabase.from('system_settings').select('*').single()
     ]);
 
-    set({ 
-      incidents: incidents || [], 
+    set({
       rawLogs: logs || [],
       settings: settings ? { ...defaultSettings, ...settings as any } : defaultSettings
     });
@@ -88,18 +122,27 @@ export const useStore = create<AppState>((set, get) => ({
     // Initial stats fetch
     await get().fetchStats();
     
-    // Set up polling interval for backend stats (Requirement 9: Real-time integration)
-    const statsInterval = setInterval(() => {
-        get().fetchStats();
-    }, 5000); // 5s interval
+    // Poll backend incidents every 3 seconds (primary real-time source)
+    setInterval(() => {
+      get().fetchBackendIncidents();
+    }, 3000);
 
-    // Realtime Subscriptions
+    // Also poll backend stats every 5s
+    setInterval(() => {
+      get().fetchStats();
+    }, 5000);
+
+    // Realtime Subscriptions (Supabase secondary)
     supabase.channel('public:incidents')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'incidents' }, (payload) => {
         const { eventType, new: newRow, old: oldRow } = payload;
         
         if (eventType === 'INSERT') {
-          set((state) => ({ incidents: [newRow as SecurityEvent, ...state.incidents].slice(0, 1000) }));
+          set((state) => {
+            const exists = state.incidents.some(i => i.id === (newRow as SecurityEvent).id);
+            if (exists) return state;
+            return { incidents: [newRow as SecurityEvent, ...state.incidents].slice(0, 1000) };
+          });
         } else if (eventType === 'UPDATE') {
           set((state) => ({ 
             incidents: state.incidents.map(inc => inc.id === newRow.id ? (newRow as SecurityEvent) : inc) 
@@ -124,7 +167,34 @@ export const useStore = create<AppState>((set, get) => ({
   },
   
   addIncident: async (incident) => {
-    await supabase.from('incidents').insert([incident]);
+    // Try Supabase first, fallback gracefully
+    try {
+      await supabase.from('incidents').insert([incident]);
+    } catch (e) {
+      console.debug('[STORE] addIncident Supabase fallback, using backend only');
+    }
+  },
+
+  fetchBackendIncidents: async () => {
+    try {
+      const res = await fetch('http://localhost:8001/incidents?limit=200');
+      const data = await res.json();
+      const backendIncidents: SecurityEvent[] = data.incidents || [];
+      if (backendIncidents.length === 0) return;
+
+      set((state) => {
+        const backendIds = new Set(backendIncidents.map(i => i.id));
+        const supabaseOnly = state.incidents.filter(i => !backendIds.has(i.id));
+        const merged = [...backendIncidents, ...supabaseOnly]
+          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        // Only update state if something actually changed
+        if (merged.length === state.incidents.length && 
+            merged[0]?.id === state.incidents[0]?.id) return state;
+        return { incidents: merged.slice(0, 500) };
+      });
+    } catch (e) {
+      // Backend unreachable — no-op, keep existing state
+    }
   },
   
   addRawLog: async (log) => {
@@ -152,21 +222,40 @@ export const useStore = create<AppState>((set, get) => ({
   pauseSimulation: (paused) => set({ isPaused: paused }),
 
   resolveIncident: async (id) => {
-    await supabase.from('incidents').delete().eq('id', id);
+    // Optimistic local update
+    set((state) => ({ incidents: state.incidents.filter(inc => inc.id !== id) }));
     if (get().activePlaybookId === id) set({ activePlaybookId: null });
+    // Backend sync
+    try { await fetch(`http://localhost:8001/incidents/${id}`, { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ status: 'RESOLVED' }) }); } catch {}
+    // Supabase best-effort
+    try { await supabase.from('incidents').delete().eq('id', id); } catch {}
   },
 
   bulkResolveIncidents: async (ids) => {
-    await supabase.from('incidents').delete().in('id', ids);
+    set((state) => ({ incidents: state.incidents.filter(inc => !ids.includes(inc.id)) }));
     if (get().activePlaybookId && ids.includes(get().activePlaybookId!)) set({ activePlaybookId: null });
+    // Backend sync (parallel)
+    await Promise.allSettled(ids.map(id =>
+      fetch(`http://localhost:8001/incidents/${id}`, { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ status: 'RESOLVED' }) })
+    ));
+    try { await supabase.from('incidents').delete().in('id', ids); } catch {}
   },
 
   escalateIncident: async (id) => {
-    await supabase.from('incidents').update({ severity: 'CRITICAL' }).eq('id', id);
+    // Optimistic local update
+    set((state) => ({ incidents: state.incidents.map(inc => inc.id === id ? { ...inc, severity: 'CRITICAL' } : inc) }));
+    // Backend sync
+    try { await fetch(`http://localhost:8001/incidents/${id}`, { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ severity: 'CRITICAL' }) }); } catch {}
+    // Supabase best-effort
+    try { await supabase.from('incidents').update({ severity: 'CRITICAL' }).eq('id', id); } catch {}
   },
 
   bulkEscalateIncidents: async (ids) => {
-    await supabase.from('incidents').update({ severity: 'CRITICAL' }).in('id', ids);
+    set((state) => ({ incidents: state.incidents.map(inc => ids.includes(inc.id) ? { ...inc, severity: 'CRITICAL' } : inc) }));
+    await Promise.allSettled(ids.map(id =>
+      fetch(`http://localhost:8001/incidents/${id}`, { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ severity: 'CRITICAL' }) })
+    ));
+    try { await supabase.from('incidents').update({ severity: 'CRITICAL' }).in('id', ids); } catch {}
   },
 
   updateRemediation: async (id, action) => {
@@ -174,10 +263,15 @@ export const useStore = create<AppState>((set, get) => ({
     if (incident) {
       const history = incident.history || [];
       const updatedHistory = [...history, { action, timestamp: new Date().toISOString() }];
-      await supabase.from('incidents').update({ 
-        status: 'MITIGATED',
-        history: updatedHistory
-      }).eq('id', id);
+      const update = { status: 'MITIGATED' as const, history: updatedHistory };
+      // Optimistic local update first
+      set((state) => ({
+        incidents: state.incidents.map(inc => inc.id === id ? { ...inc, ...update } : inc)
+      }));
+      // Backend sync
+      try { await fetch(`http://localhost:8001/incidents/${id}`, { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(update) }); } catch {}
+      // Supabase best-effort
+      try { await supabase.from('incidents').update(update).eq('id', id); } catch {}
     }
   },
 
@@ -324,9 +418,35 @@ export const useStore = create<AppState>((set, get) => ({
         const stats = await statsRes.json();
         set({ backendStats: stats });
     } catch (e) {
-        console.debug('Backend unreachable for stats:', e.message);
+        console.debug('Backend unreachable for stats:', (e as Error).message);
         // We don't reset backendStats to null to avoid UI flickering during transient disconnects
     }
-  }
+  },
+
+  toggleAutoRemediation: async (enabled: boolean) => {
+    try {
+      await fetch(`http://localhost:8001/settings/protection?enabled=${enabled}`, { method: 'POST' });
+      // Optimistically update local backendStats
+      set((state) => ({
+        backendStats: state.backendStats ? { ...state.backendStats, auto_remediation: enabled } : state.backendStats
+      }));
+      // Re-fetch to confirm
+      await useStore.getState().fetchStats();
+    } catch (e) {
+      console.error('[STORE] toggleAutoRemediation failed:', e);
+    }
+  },
+
+  injectManualLog: async (raw: string, layer = 'network') => {
+    try {
+      await fetch('http://localhost:8001/ingest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ raw, layer })
+      });
+    } catch (e) {
+      console.error('[STORE] injectManualLog failed:', e);
+    }
+  },
 }));
 

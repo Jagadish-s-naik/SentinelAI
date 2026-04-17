@@ -18,6 +18,7 @@ export interface SecurityEvent {
   timestamp: string;
   layer: LayerType;
   type: IncidentType;
+  title: string;
   src_ip: string;
   target: string;
   confidence: number; // 0-100

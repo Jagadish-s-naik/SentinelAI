@@ -1,365 +1,274 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  ShieldAlert, Zap, FileText, CheckCircle2, Copy, Download, 
-  Activity, Target, Network, Terminal as TerminalIcon, 
-  ArrowRight, ShieldCheck, ChevronRight, Play, RefreshCcw, 
-  Search, Filter, Info, AlertTriangle, Clock
-} from 'lucide-react';
 import { useStore } from '../store';
-import { format } from 'date-fns';
-import { useNavigate } from 'react-router-dom';
+import type { SecurityEvent } from '../types';
+import { BookOpen, Play, Check, AlertTriangle, Terminal, Loader2, ChevronRight, Clock } from 'lucide-react';
+import { showToast } from '../components/Layout';
 
+// ── Step types ─────────────────────────────────────────────────────────────────
+type Phase = 'CONTAIN' | 'ERADICATE' | 'RECOVER';
+interface PlaybookStep { id: number; phase: Phase; title: string; desc: string; done: boolean; }
 
-const Terminal = ({ logs }: { logs: string[] }) => (
-  <div className="bg-[#050505] rounded-xl border border-border-subtle p-4 font-mono text-xs overflow-hidden h-64 flex flex-col shadow-inner">
-    <div className="flex items-center gap-1.5 mb-3 border-b border-white/5 pb-2">
-      <div className="w-2.5 h-2.5 rounded-full bg-red-alert/50" />
-      <div className="w-2.5 h-2.5 rounded-full bg-orange-warning/50" />
-      <div className="w-2.5 h-2.5 rounded-full bg-teal-accent/50" />
-      <span className="ml-2 text-text-muted text-[10px] uppercase tracking-widest font-black">Playbook Execution Console</span>
-    </div>
-    <div className="flex-1 overflow-y-auto space-y-1 custom-scrollbar">
-      {logs.map((log, i) => (
-        <div key={i} className="flex gap-3">
-          <span className="text-text-muted shrink-0">[{format(new Date(), "HH:mm:ss")}]</span>
-          <span className={log.startsWith('>') ? 'text-teal-accent' : log.includes('ERR') ? 'text-red-alert' : 'text-gray-400'}>
-            {log}
+function buildSteps(): PlaybookStep[] {
+  return [
+    { id: 1, phase: 'CONTAIN',   title: 'Isolate Source IP',          desc: 'Block the offending source IP at the perimeter firewall via ACL.', done: false },
+    { id: 2, phase: 'CONTAIN',   title: 'Terminate Active Sessions',   desc: 'Kill all active network sessions from the identified source.', done: false },
+    { id: 3, phase: 'CONTAIN',   title: 'Revoke Compromised Tokens',   desc: 'Invalidate all OAuth and API tokens associated with the entity.', done: false },
+    { id: 4, phase: 'ERADICATE', title: 'Audit Authentication Logs',   desc: 'Review all auth logs from T-24h to identify lateral movement.', done: false },
+    { id: 5, phase: 'ERADICATE', title: 'Patch Vulnerable Endpoint',   desc: 'Apply available security patches to the targeted service.', done: false },
+    { id: 6, phase: 'ERADICATE', title: 'Remove Malicious Artifacts',  desc: 'Delete or quarantine identified malicious files and processes.', done: false },
+    { id: 7, phase: 'RECOVER',   title: 'Restore Service Access',      desc: 'Gradually restore access with enhanced monitoring enabled.', done: false },
+    { id: 8, phase: 'RECOVER',   title: 'Send Incident Closure Report', desc: 'Generate and distribute post-incident report to stakeholders.', done: false },
+  ];
+}
+
+const phaseColors: Record<Phase, string> = { CONTAIN: '#E53935', ERADICATE: '#EA580C', RECOVER: '#16A34A' };
+const phaseBg: Record<Phase, string>     = { CONTAIN: '#FFF1F0', ERADICATE: '#FFF7ED', RECOVER: '#F0FDF4' };
+
+// ── Step Card ──────────────────────────────────────────────────────────────────
+function StepCard({ step, delay }: { step: PlaybookStep; delay: number }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: 10 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay }}
+      className="flex items-start gap-3 p-4 rounded-lg border transition-all"
+      style={{
+        background: step.done ? `${phaseBg[step.phase]}` : '#FAFAFA',
+        borderColor: step.done ? phaseColors[step.phase] + '60' : '#E5E7EB',
+      }}
+    >
+      {/* Circle checkbox */}
+      <div className="w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 transition-all"
+        style={{
+          borderColor: step.done ? phaseColors[step.phase] : '#D1D5DB',
+          background: step.done ? phaseColors[step.phase] : 'transparent',
+        }}
+      >
+        {step.done && <Check className="w-3 h-3 text-white" />}
+      </div>
+
+      <div className="flex-1">
+        <div className="flex items-center gap-2 mb-0.5">
+          <span className="text-[10px] font-black uppercase px-1.5 py-0.5 rounded" style={{ background: phaseBg[step.phase], color: phaseColors[step.phase] }}>
+            {step.phase}
           </span>
+          <span className="text-xs font-semibold" style={{ color: step.done ? phaseColors[step.phase] : '#111827' }}>{step.title}</span>
         </div>
-      ))}
-      <div className="animate-pulse inline-block w-2 h-4 bg-teal-accent ml-1 align-middle" />
-    </div>
-  </div>
-);
-
-const FlowNode = ({ step, status, isActive }: { step: any, status: 'pending' | 'running' | 'done', isActive: boolean }) => (
-  <motion.div 
-    layout
-    className={`p-4 rounded-xl border-2 transition-all relative ${
-      isActive ? 'border-teal-accent bg-secondary-card shadow-[0_0_20px_rgba(0,212,184,0.15)] scale-[1.05]' : 
-      status === 'done' ? 'border-teal-accent/30 bg-background' : 'border-border-subtle bg-background opacity-50'
-    }`}
-  >
-    <div className="flex items-center gap-4">
-      <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 border-2 ${
-        status === 'done' ? 'bg-teal-accent/10 border-teal-accent text-teal-accent' : 
-        status === 'running' ? 'bg-teal-accent border-teal-accent text-background animate-pulse' : 
-        'bg-background border-border-subtle text-text-muted'
-      }`}>
-        {status === 'done' ? <CheckCircle2 className="w-4 h-4" /> : <Play className="w-3 h-3" />}
+        <p className="text-xs" style={{ color: '#6B7280' }}>{step.desc}</p>
       </div>
-      <div className="flex-1 min-w-0">
-        <div className="text-[9px] font-black tracking-widest text-text-muted uppercase mb-0.5">{step.phase}</div>
-        <div className="text-sm font-bold text-white truncate">{step.action}</div>
-      </div>
-      {status === 'running' && (
-         <div className="absolute inset-0 bg-teal-accent/5 animate-pulse rounded-xl" />
-      )}
-    </div>
-  </motion.div>
-);
+    </motion.div>
+  );
+}
 
+// ── Playbooks ──────────────────────────────────────────────────────────────────
 export const Playbooks = () => {
-  const { incidents, activePlaybookId, setActivePlaybookId, resolveIncident, escalateIncident, activePlaybookSteps } = useStore();
-  const [executionState, setExecutionState] = useState<'IDLE' | 'RUNNING' | 'HALTED' | 'COMPLETED'>('IDLE');
-  const [activeStepIndex, setActiveStepIndex] = useState(-1);
-  const [logs, setLogs] = useState<string[]>([]);
-  const [notif, setNotif] = useState<string | null>(null);
-  const [isResolving, setIsResolving] = useState(false);
-  const [isEscalating, setIsEscalating] = useState(false);
-  const navigate = useNavigate();
+  const { incidents } = useStore();
+  const [selected, setSelected] = useState<SecurityEvent | null>(null);
+  const [steps, setSteps] = useState<PlaybookStep[]>(buildSteps());
+  const [isRunning, setIsRunning] = useState(false);
+  const [consoleLogs, setConsoleLogs] = useState<string[]>([
+    `[${new Date().toISOString()}] Playbook Commander v2.0 · Ready`,
+    `[${new Date().toISOString()}] Awaiting orchestration target...`,
+  ]);
+  const [execVelocity, setExecVelocity] = useState(0);
+  const [autonomyConf] = useState(94.2);
 
-  const showNotif = (msg: string) => {
-    setNotif(msg);
-    setTimeout(() => setNotif(null), 3000);
+  const queuedIncidents = useMemo(() =>
+    incidents.filter(i => i.status !== 'RESOLVED').slice(0, 10),
+    [incidents]
+  );
+
+  const handleSelect = (inc: SecurityEvent) => {
+    setSelected(inc);
+    setSteps(buildSteps());
+    setIsRunning(false);
+    setExecVelocity(0);
+    setConsoleLogs(prev => [
+      ...prev,
+      `[${new Date().toISOString()}] Target loaded: ${inc.type.replace(/_/g,' ')}_${inc.id.slice(0,6)}`,
+      `[${new Date().toISOString()}] Severity: ${inc.severity} · Technique: ${inc.mitre_tag}`,
+    ]);
   };
 
-  const selectedIncident = useMemo(() => 
-    incidents.find(i => i.id === activePlaybookId) || null
-  , [incidents, activePlaybookId]);
+  const startOrchestration = () => {
+    if (!selected || isRunning) return;
+    setIsRunning(true);
+    showToast({ type: 'success', title: 'Playbook Commander Initialized', desc: `Running ${selected.type.replace(/_/g,' ')} response plan.` });
+    setConsoleLogs(prev => [...prev, `[${new Date().toISOString()}] ▶ ORCHESTRATION STARTED`]);
 
-  const playbookSteps = useMemo(() => activePlaybookSteps || [], [activePlaybookSteps]);
-
-  useEffect(() => {
-    if (executionState === 'RUNNING' && activeStepIndex < playbookSteps.length) {
-      const step = playbookSteps[activeStepIndex];
-      const nextStep = () => {
-        setLogs(prev => [...prev, `> Executing: ${step.command.replace('{src_ip}', selectedIncident?.src_ip || '0.0.0.0').replace('{target}', selectedIncident?.target || 'unknown')}`]);
-        
-        setTimeout(() => {
-          setLogs(prev => [...prev, `[SUCCESS] Step ${step.id} verified. Access control lists updated.`]);
-          if (activeStepIndex === playbookSteps.length - 1) {
-            setExecutionState('COMPLETED');
-            setLogs(prev => [...prev, `[DONE] Full orchestration cycle completed. System stabilized.`]);
-          } else {
-            setActiveStepIndex(prev => prev + 1);
-          }
-        }, 1500);
-      };
-      nextStep();
-    }
-  }, [executionState, activeStepIndex, playbookSteps, selectedIncident]);
-
-  const handleStart = () => {
-    setExecutionState('RUNNING');
-    setActiveStepIndex(0);
-    setLogs(['INITIALIZING AI COMMANDER...', `Target System: ${selectedIncident?.target}`, 'Fetching dynamic mitigation signatures...']);
+    steps.forEach((step, i) => {
+      setTimeout(() => {
+        setSteps(prev => prev.map(s => s.id === step.id ? { ...s, done: true } : s));
+        setExecVelocity(Math.round(((i + 1) / steps.length) * 100));
+        setConsoleLogs(prev => [
+          ...prev,
+          `[${new Date().toISOString()}] ✔ Step ${step.id}: ${step.title}`
+        ]);
+        if (i === steps.length - 1) {
+          setTimeout(() => {
+            setIsRunning(false);
+            setConsoleLogs(prev => [...prev, `[${new Date().toISOString()}] ■ ORCHESTRATION COMPLETE`]);
+            showToast({ type: 'success', title: 'Playbook Complete', desc: 'All 8 steps executed successfully.' });
+          }, 400);
+        }
+      }, (i + 1) * 800);
+    });
   };
 
-  const handleReset = () => {
-    setExecutionState('IDLE');
-    setActiveStepIndex(-1);
-    setLogs([]);
-  };
-
-  const handleDownload = () => {
-    if (!selectedIncident) return;
-    const data = {
-        incident_id: selectedIncident.id,
-        timestamp: new Date().toISOString(),
-        threat_type: selectedIncident.type,
-        mitigation_strategy: playbookSteps,
-        execution_logs: logs
-    };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `PLAYBOOK_${selectedIncident.id.slice(0,8)}.json`;
-    a.click();
-    showNotif("STRATEGY EXPORTED");
-  };
+  const doneCount = steps.filter(s => s.done).length;
 
   return (
-    <div className="h-[calc(100vh-140px)] flex flex-col space-y-4">
-      
-      {/* Header */}
-      <div className="flex justify-between items-center relative">
-        <AnimatePresence>
-            {notif && (
-                <motion.div 
-                    initial={{ opacity: 0, y: -20, x: '-50%' }}
-                    animate={{ opacity: 1, y: 0, x: '-50%' }}
-                    exit={{ opacity: 0, y: -20, x: '-50%' }}
-                    className="absolute top-0 left-1/2 z-50 bg-teal-accent text-background px-4 py-2 rounded-full text-[10px] font-black shadow-[0_0_30px_rgba(0,212,184,0.4)]"
+    <div className="h-full flex page-enter" style={{ background: '#FFFFFF' }}>
+
+      {/* ── Left Queue ──────────────────────────────────────── */}
+      <div className="w-72 shrink-0 flex flex-col border-r" style={{ borderColor: '#E5E7EB' }}>
+        <div className="px-4 py-4 border-b shrink-0" style={{ borderColor: '#E5E7EB' }}>
+          <h1 className="font-semibold text-sm mb-1" style={{ color: '#111827' }}>Response Queue</h1>
+          <p className="text-xs" style={{ color: '#9CA3AF' }}>{queuedIncidents.length} incidents awaiting playbook</p>
+        </div>
+        <div className="flex-1 overflow-y-auto p-3">
+          {queuedIncidents.map((inc) => (
+            <button
+              key={inc.id}
+              onClick={() => handleSelect(inc)}
+              className="w-full text-left p-3 rounded-lg border mb-2 transition-all block"
+              style={{
+                background: selected?.id === inc.id ? '#FFF1F0' : '#FAFAFA',
+                borderColor: selected?.id === inc.id ? '#E53935' : '#E5E7EB',
+                borderLeft: selected?.id === inc.id ? '3px solid #E53935' : '3px solid transparent',
+              }}
+            >
+              <div className="flex items-center justify-between mb-1">
+                <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${inc.severity === 'CRITICAL' ? 'badge-critical' : inc.severity === 'HIGH' ? 'badge-high' : 'badge-medium'}`}>
+                  {inc.severity}
+                </span>
+                <ChevronRight className="w-3 h-3" style={{ color: '#D1D5DB' }} />
+              </div>
+              <div className="text-xs font-semibold mb-0.5" style={{ color: '#111827' }}>{inc.type.replace(/_/g, ' ').toUpperCase()}</div>
+              <div className="text-[10px] font-mono" style={{ color: '#9CA3AF' }}>{inc.src_ip}</div>
+              <div className="text-[10px] mt-1 px-1.5 py-0.5 rounded inline-block" style={{ background: '#FFF7ED', color: '#EA580C', border: '1px solid #FED7AA' }}>{inc.mitre_tag}</div>
+            </button>
+          ))}
+          {queuedIncidents.length === 0 && (
+            <div className="text-center py-10 text-xs" style={{ color: '#9CA3AF' }}>
+              <BookOpen className="w-8 h-8 mx-auto mb-2" style={{ color: '#D1D5DB' }} />
+              No incidents queued
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Right: Playbook Commander ────────────────────────── */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {selected ? (
+          <>
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b shrink-0" style={{ borderColor: '#E5E7EB' }}>
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className={`badge-${selected.severity.toLowerCase()} text-[10px] px-2 py-0.5 rounded font-bold`}>{selected.severity}</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded font-mono" style={{ background: '#FFF7ED', color: '#EA580C', border: '1px solid #FED7AA' }}>{selected.mitre_tag}</span>
+                </div>
+                <h2 className="font-semibold text-sm" style={{ color: '#111827' }}>
+                  {selected.type.replace(/_/g, ' ').toUpperCase()} — Response Strategy
+                </h2>
+              </div>
+              <div className="flex items-center gap-3">
+                {doneCount > 0 && (
+                  <div className="text-xs font-mono" style={{ color: '#6B7280' }}>
+                    {doneCount}/{steps.length} steps
+                  </div>
+                )}
+                <button
+                  onClick={startOrchestration}
+                  disabled={isRunning || doneCount === steps.length}
+                  className="btn-primary text-xs"
                 >
-                    {notif}
-                </motion.div>
-            )}
-        </AnimatePresence>
-        <div>
-            <h1 className="text-3xl font-heading font-black text-white flex items-center">
-                <Play className="mr-3 text-teal-accent w-8 h-8 fill-teal-accent" /> 
-                Playbook Commander
-            </h1>
-            <p className="text-text-muted text-sm mt-1">Autonomous orchestration & human-in-the-loop response nexus.</p>
-        </div>
-        <div className="flex gap-3">
-             <button 
-                onClick={() => navigate('/incidents')}
-                className="flex items-center gap-2 px-4 py-2 bg-secondary-card hover:bg-background border border-border-subtle rounded-xl text-text-muted hover:text-white transition-all text-xs font-bold"
-             >
-                <ArrowRight className="w-4 h-4 rotate-180" /> RETURN TO TRIAGE
-             </button>
-             {selectedIncident && (
-                 <>
-                    <button 
-                        onClick={handleDownload}
-                        className="bg-secondary-card hover:bg-background text-text-muted hover:text-white border border-border-subtle p-2 rounded-xl transition-all"
-                        title="Download Strategy"
-                    >
-                        <Download className="w-5 h-5" />
-                    </button>
-                    <button 
-                        disabled={isResolving}
-                        onClick={async () => {
-                            setIsResolving(true);
-                            await resolveIncident(selectedIncident.id);
-                            showNotif("INCIDENT RESOLVED & CLOSED");
-                            handleReset();
-                            setIsResolving(false);
-                        }}
-                        className={`px-6 py-2 rounded-xl font-bold transition-all flex items-center gap-2 shadow-[0_0_20px_rgba(0,212,184,0.1)] ${
-                            isResolving ? 'bg-background text-text-muted cursor-wait' : 'bg-teal-accent/10 hover:bg-teal-accent text-teal-accent hover:text-background border border-teal-accent/30'
-                        }`}
-                    >
-                        {isResolving ? <RefreshCcw className="w-5 h-5 animate-spin" /> : <ShieldCheck className="w-5 h-5" />}
-                        {isResolving ? 'Processing...' : 'Resolve Incident'}
-                    </button>
-                 </>
-             )}
-        </div>
-      </div>
-
-      <div className="flex-1 flex gap-6 overflow-hidden">
-        
-        {/* Playbook Queue - Left */}
-        <div className="w-[380px] flex flex-col space-y-4">
-            <div className="bg-card border border-border-subtle p-4 rounded-xl">
-                <div className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-4 flex items-center justify-between">
-                    <span>Active Response Queue</span>
-                    <span className="bg-red-alert/10 text-red-alert px-2 py-0.5 rounded italic">{incidents.length} Pending</span>
-                </div>
-                <div className="space-y-3 overflow-y-auto max-h-[60vh] pr-2 custom-scrollbar">
-                    {incidents.slice(0, 15).map(inc => (
-                        <div 
-                            key={inc.id}
-                            onClick={() => {
-                                setActivePlaybookId(inc.id);
-                                handleReset();
-                            }}
-                            className={`p-3 rounded-xl border-2 transition-all cursor-pointer group ${
-                                activePlaybookId === inc.id ? 'border-teal-accent bg-secondary-card' : 'border-border-subtle hover:border-border-subtle/80 bg-background/50'
-                            }`}
-                        >
-                            <div className="flex justify-between items-start">
-                                <span className={`text-[8px] font-black px-1.5 py-0.5 rounded tracking-tighter ${inc.severity === 'CRITICAL' ? 'bg-red-alert text-white' : 'bg-blue-accent text-white'}`}>
-                                    {inc.severity}
-                                </span>
-                                <span className="text-[10px] font-mono text-text-muted">{format(new Date(inc.timestamp), "HH:mm")}</span>
-                            </div>
-                            <h4 className="text-white font-bold text-sm mt-2 uppercase truncate group-hover:text-teal-accent transition-colors">{inc.type.replace('_', ' ')}</h4>
-                            <div className="flex justify-between items-center mt-2 text-[10px] font-mono">
-                                <span className="text-text-muted">{inc.src_ip}</span>
-                                <ChevronRight className={`w-4 h-4 text-teal-accent transition-transform ${activePlaybookId === inc.id ? 'translate-x-1' : ''}`} />
-                            </div>
-                        </div>
-                    ))}
-                </div>
+                  {isRunning ? (
+                    <><Loader2 className="w-3.5 h-3.5 animate-spin" /> RUNNING…</>
+                  ) : doneCount === steps.length ? (
+                    <><Check className="w-3.5 h-3.5" /> COMPLETE</>
+                  ) : (
+                    <><Play className="w-3.5 h-3.5" /> START ORCHESTRATION</>
+                  )}
+                </button>
+              </div>
             </div>
-            
-            <div className="flex-1 bg-secondary-card/30 border border-border-subtle rounded-xl p-4 flex flex-col justify-center items-center text-center space-y-3">
-                <Info className="w-8 h-8 text-text-muted opacity-20" />
-                <p className="text-[10px] text-text-muted uppercase tracking-widest font-black max-w-[200px]">Strategic mitigation steps are dynamically generated based on telemetry features.</p>
+
+            {/* Body */}
+            <div className="flex-1 flex overflow-hidden">
+              {/* Steps */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-2">
+                {/* Progress */}
+                {execVelocity > 0 && (
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span style={{ color: '#6B7280' }}>Execution Velocity</span>
+                      <span className="font-mono font-bold" style={{ color: '#E53935' }}>{execVelocity}%</span>
+                    </div>
+                    <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#F3F4F6' }}>
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${execVelocity}%` }}
+                        transition={{ duration: 0.4 }}
+                        className="h-full rounded-full"
+                        style={{ background: '#E53935' }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {steps.map((step, i) => <StepCard key={step.id} step={step} delay={i * 0.03} />)}
+
+                {/* Escalation Warning */}
+                <div className="mt-4 p-4 rounded-lg border" style={{ background: '#FFF7ED', borderColor: '#FED7AA' }}>
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" style={{ color: '#F59E0B' }} />
+                    <div className="flex-1">
+                      <div className="font-semibold text-xs mb-1" style={{ color: '#92400E' }}>Escalation Threshold</div>
+                      <p className="text-xs" style={{ color: '#78350F' }}>
+                        Autonomy Conf: <strong>{autonomyConf}%</strong>. If confidence drops below 80%, incident will be auto-escalated to Tier-2 SOC.
+                      </p>
+                    </div>
+                    <button className="btn-ghost text-xs py-1.5 shrink-0" style={{ color: '#F59E0B', borderColor: '#FED7AA' }}>
+                      MANUAL ESCALATION
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Execution Console */}
+              <div className="w-72 flex flex-col border-l" style={{ borderColor: '#E5E7EB' }}>
+                <div className="flex items-center gap-2 px-4 py-3 border-b shrink-0" style={{ background: '#111827', borderColor: '#1F2937' }}>
+                  <Terminal className="w-3.5 h-3.5" style={{ color: '#22C55E' }} />
+                  <span className="text-xs font-mono font-semibold" style={{ color: '#22C55E' }}>Execution Console</span>
+                </div>
+                <div className="flex-1 overflow-y-auto p-3 terminal-scroll" style={{ background: '#0D0D0D' }}>
+                  {consoleLogs.map((log, i) => (
+                    <div key={i} className="font-mono text-[10px] leading-relaxed mb-0.5" style={{ color: log.includes('✔') ? '#22C55E' : log.includes('▶') ? '#F59E0B' : log.includes('■') ? '#E53935' : '#9CA3AF' }}>
+                      {log}
+                    </div>
+                  ))}
+                  {isRunning && (
+                    <div className="font-mono text-[10px] flex items-center gap-1 mt-1" style={{ color: '#F59E0B' }}>
+                      <Loader2 className="w-3 h-3 animate-spin" /> Processing…
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
-        </div>
-
-        {/* Execution Workspace - Center/Right */}
-        <div className="flex-1 overflow-hidden flex flex-col space-y-4">
-            {selectedIncident ? (
-                <div className="flex-1 flex flex-col overflow-hidden bg-card/50 border border-border-subtle rounded-2xl">
-                    <div className="p-6 border-b border-border-subtle bg-secondary-card/40 flex justify-between items-center">
-                        <div className="flex items-center gap-6">
-                            <div className="p-3 rounded-2xl bg-teal-accent/10 border border-teal-accent/20">
-                                <Zap className="w-8 h-8 text-teal-accent fill-teal-accent/20" />
-                            </div>
-                            <div>
-                                <h2 className="text-xl font-heading font-black text-white uppercase tracking-tight">{selectedIncident.type.replace('_', ' ')} STRATEGY</h2>
-                                <div className="flex gap-4 mt-1">
-                                    <div className="flex items-center gap-1.5 text-[10px] font-mono text-text-muted">
-                                        <Target className="w-3.5 h-3.5 text-red-alert" /> {selectedIncident.src_ip}
-                                    </div>
-                                    <div className="flex items-center gap-1.5 text-[10px] font-mono text-text-muted">
-                                        <Clock className="w-3.5 h-3.5 text-teal-accent" /> {format(new Date(selectedIncident.timestamp), "MMM d, HH:mm:ss")}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        {executionState === 'IDLE' && (
-                             <motion.button 
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                                onClick={handleStart}
-                                className="bg-teal-accent text-background font-black px-8 py-3 rounded-xl flex items-center gap-3 shadow-[0_0_30px_rgba(0,212,184,0.3)] group"
-                            >
-                                <Play className="w-5 h-5 fill-background group-hover:scale-110 transition-transform" /> START ORCHESTRATION
-                            </motion.button>
-                        )}
-                        {executionState === 'COMPLETED' && (
-                             <button onClick={handleReset} className="text-teal-accent hover:text-white flex items-center gap-2 text-xs font-black uppercase tracking-widest transition-colors">
-                                <RefreshCcw className="w-4 h-4" /> Reset Flow
-                             </button>
-                        )}
-                    </div>
-
-                    <div className="flex-1 flex overflow-hidden">
-                        {/* Flow Diagram - Left */}
-                        <div className="flex-1 p-6 overflow-y-auto custom-scrollbar border-r border-border-subtle">
-                            <div className="max-w-md mx-auto relative space-y-8">
-                                <div className="absolute left-[31px] top-6 bottom-6 w-0.5 bg-border-subtle" />
-                                <AnimatePresence mode="popLayout">
-                                    {playbookSteps.map((step, index) => {
-                                        const status = index < activeStepIndex || executionState === 'COMPLETED' ? 'done' : index === activeStepIndex ? 'running' : 'pending';
-                                        return (
-                                            <FlowNode 
-                                                key={step.id} 
-                                                step={step} 
-                                                status={status} 
-                                                isActive={index === activeStepIndex} 
-                                            />
-                                        );
-                                    })}
-                                </AnimatePresence>
-                                {executionState === 'COMPLETED' && (
-                                    <motion.div 
-                                        initial={{ scale: 0 }} 
-                                        animate={{ scale: 1 }} 
-                                        className="bg-teal-accent/10 border border-teal-accent/30 p-6 rounded-2xl text-center space-y-2 mt-12"
-                                    >
-                                        <ShieldCheck className="w-12 h-12 text-teal-accent mx-auto mb-2" />
-                                        <h4 className="text-white font-bold uppercase tracking-tight">Strategy Executed Successfully</h4>
-                                        <p className="text-[11px] text-text-muted">Persistence removed, threat isolated, and telemetry confirmed stable.</p>
-                                    </motion.div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Terminal & Metrics - Right */}
-                        <div className="w-[450px] p-6 bg-background/30 flex flex-col space-y-6">
-                            <Terminal logs={logs} />
-                            
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="bg-secondary-card p-4 rounded-xl border border-border-subtle border-l-4 border-l-teal-accent">
-                                    <div className="text-[9px] font-black text-text-muted uppercase tracking-widest mb-1">Execution Velocity</div>
-                                    <div className="text-xl font-mono font-bold text-white">420ms <span className="text-[10px] text-teal-accent">/ node</span></div>
-                                </div>
-                                <div className="bg-secondary-card p-4 rounded-xl border border-border-subtle border-l-4 border-l-orange-warning">
-                                    <div className="text-[9px] font-black text-text-muted uppercase tracking-widest mb-1">Autonomy Conf</div>
-                                    <div className="text-xl font-mono font-bold text-white">L4 <span className="text-[10px] text-orange-warning">UNSUPERVISED</span></div>
-                                </div>
-                            </div>
-
-                            <div className="flex-1 bg-secondary-card/40 border-2 border-dashed border-border-subtle rounded-xl p-8 flex flex-col items-center justify-center text-center space-y-4">
-                                <AlertTriangle className="w-10 h-10 text-orange-warning/50" />
-                                <div>
-                                    <h5 className="text-white font-bold text-xs uppercase">Escalation Threshold</h5>
-                                    <p className="text-[11px] text-text-muted mt-1 leading-relaxed">If playbook efficacy drops below 85%, system will auto-escalate to Tier 2 human supervisor.</p>
-                                </div>
-                                <button 
-                                    disabled={isEscalating}
-                                    onClick={async () => {
-                                        setIsEscalating(true);
-                                        await escalateIncident(selectedIncident.id);
-                                        showNotif("ESCALATED TO TIER 2 INTERVENTION");
-                                        setTimeout(() => setIsEscalating(false), 2000);
-                                    }}
-                                    className={`px-6 py-2 border rounded-xl text-[10px] font-black transition-all flex items-center gap-2 ${
-                                        isEscalating ? 'bg-background text-text-muted cursor-wait border-border-subtle' : 'bg-orange-warning/10 hover:bg-orange-warning text-orange-warning hover:text-background border-orange-warning/30'
-                                    }`}
-                                >
-                                    {isEscalating ? <RefreshCcw className="w-3.5 h-3.5 animate-spin" /> : <ShieldAlert className="w-3.5 h-3.5" />}
-                                    {isEscalating ? 'Escalating...' : 'MANUAL ESCALATION'}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            ) : (
-                <div className="flex-1 flex flex-col items-center justify-center text-center gap-6 bg-card/30 border border-border-subtle rounded-2xl border-dashed">
-                    <div className="w-24 h-24 bg-secondary-card rounded-full flex items-center justify-center border border-border-subtle animate-bounce">
-                        <TerminalIcon className="w-12 h-12 text-text-muted opacity-20" />
-                    </div>
-                    <div>
-                        <h2 className="text-2xl font-heading font-black text-white">No Response Cycle Active</h2>
-                        <p className="text-text-muted text-sm max-w-sm mx-auto mt-2">Select a pending incident from the response queue to initialize the playbook commander.</p>
-                    </div>
-                </div>
-            )}
-        </div>
-
+          </>
+        ) : (
+          <div className="h-full flex flex-col items-center justify-center">
+            <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4" style={{ background: '#F3F4F6' }}>
+              <BookOpen className="w-8 h-8" style={{ color: '#D1D5DB' }} />
+            </div>
+            <h3 className="font-semibold mb-1" style={{ color: '#374151' }}>Playbook Commander</h3>
+            <p className="text-sm" style={{ color: '#9CA3AF' }}>Select an incident from the queue to load a response strategy</p>
+          </div>
+        )}
       </div>
-
     </div>
   );
 };

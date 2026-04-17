@@ -1,655 +1,402 @@
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../store';
 import type { SecurityEvent } from '../types';
-import { format } from 'date-fns';
-import { X, Brain, ShieldAlert, AlertTriangle, ArrowRight, Network, RotateCcw, Activity, Search, ShieldCheck, Target, Cpu, Zap, Copy, RefreshCcw, Check, Clock } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { format, formatDistanceToNow } from 'date-fns';
+import {
+  Search, X, Brain, AlertTriangle, ChevronRight, Network,
+  ShieldCheck, Clock, Copy, RotateCcw, Check, Activity, Target, BookOpen
+} from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import ForensicGraph from '../components/ForensicGraph';
-import html2pdf from 'html2pdf.js';
+import { showToast } from '../components/Layout';
 
-const getSeverityColor = (sev: string) => {
-  switch (sev) {
-    case 'CRITICAL': return 'bg-red-alert text-white shadow-[0_0_15px_rgba(255,76,76,0.5)]';
-    case 'HIGH': return 'bg-orange-warning text-white';
-    case 'MEDIUM': return 'bg-blue-accent text-white';
-    default: return 'bg-text-muted text-background';
+// ── Error Boundary ─────────────────────────────────────────────────────────────
+class InspectorErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error: string }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: '' };
   }
-};
-
-const getSeverityBorder = (sev: string) => {
-  switch (sev) {
-    case 'CRITICAL': return 'border-red-alert/50';
-    case 'HIGH': return 'border-orange-warning/50';
-    case 'MEDIUM': return 'border-blue-accent/50';
-    default: return 'border-border-subtle';
+  static getDerivedStateFromError(err: Error) {
+    return { hasError: true, error: err.message };
   }
-};
-
-const isBusinessHours = (timestamp: string, businessHours: { start: string, end: string }) => {
-  const date = new Date(timestamp);
-  const hour = date.getUTCHours();
-  const minute = date.getUTCMinutes();
-  const timeNum = hour * 60 + minute;
-
-  const [startH, startM] = businessHours.start.split(':').map(Number);
-  const [endH, endM] = businessHours.end.split(':').map(Number);
-  const startNum = startH * 60 + startM;
-  const endNum = endH * 60 + endM;
-
-  return timeNum >= startNum && timeNum <= endNum;
-};
-
-const FEATURE_MAP: Record<string, { label: string, description: string }> = {
-  'byte_count': { label: 'Payload Volume', description: 'Total bytes transferred in the session. High volume often indicates exfiltration.' },
-  'connection_velocity': { label: 'Burst Rate', description: 'Frequency of connections per second. High velocity suggests automated brute-force or scanning.' },
-  'peer_count': { label: 'Node Proximity', description: 'Number of unique internal endpoints contacted. High count is a primary indicator of Lateral Movement.' },
-  'payload_entropy': { label: 'Encryption Level', description: 'Randomness of data. High entropy suggests encrypted C2 communication or packed malware.' },
-  'port_rarity': { label: 'Port Anomaly', description: 'Unusual destination port usage for this specific asset.' },
-  'login_failures': { label: 'Auth Friction', description: 'Repeated failed authentication attempts.' },
-  'process_depth': { label: 'Tree Complexity', description: 'Depth of the process tree. Deep nesting often hides malicious child processes.' }
-};
-
-const CustomTooltip = ({ active, payload }: any) => {
-  if (active && payload && payload.length) {
-    const data = payload[0].payload;
-    const info = FEATURE_MAP[data.name] || { label: data.name, description: 'Neural contribution factor for this detection event.' };
-    
-    return (
-      <div className="bg-[#0a1229]/95 backdrop-blur-xl border border-white/10 p-4 rounded-xl shadow-2xl max-w-[240px]">
-        <div className="flex justify-between items-center mb-2">
-            <span className="text-[10px] font-black text-blue-accent uppercase tracking-[0.2em]">{info.label}</span>
-            <span className={`text-[10px] font-bold ${data.value >= 0 ? 'text-teal-accent' : 'text-red-alert'}`}>
-                {data.value >= 0 ? '+' : ''}{(data.value * 100).toFixed(1)}%
-            </span>
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="h-full flex flex-col items-center justify-center text-center p-12 space-y-4">
+          <AlertTriangle className="w-12 h-12" style={{ color: '#E53935' }} />
+          <div>
+            <h3 className="font-semibold" style={{ color: '#111827' }}>Inspector Error</h3>
+            <p className="text-xs mt-1 font-mono" style={{ color: '#9CA3AF' }}>{this.state.error}</p>
+            <button onClick={() => this.setState({ hasError: false, error: '' })}
+              className="mt-4 btn-ghost text-xs">Retry</button>
+          </div>
         </div>
-        <p className="text-[10px] text-white/80 leading-relaxed font-medium">
-            {info.description}
-        </p>
-        <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-between">
-            <span className="text-[8px] text-text-muted font-mono uppercase">Forensic_Vector</span>
-            <div className={`w-1.5 h-1.5 rounded-full ${data.value >= 0 ? 'bg-teal-accent' : 'bg-red-alert'} animate-pulse`} />
-        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+function SevBadge({ sev }: { sev: string }) {
+  const cls = sev === 'CRITICAL' ? 'badge-critical' : sev === 'HIGH' ? 'badge-high' : sev === 'MEDIUM' ? 'badge-medium' : 'badge-low';
+  return <span className={`${cls} text-[10px] px-2 py-0.5 rounded font-bold`}>{sev}</span>;
+}
+
+function StatusBadge({ status }: { status?: string }) {
+  if (!status || status === 'ACTIVE') return <span className="text-[10px] px-2 py-0.5 rounded font-bold badge-critical">ACTIVE</span>;
+  if (status === 'MITIGATED') return <span className="text-[10px] px-2 py-0.5 rounded font-bold badge-low">MITIGATED</span>;
+  return <span className="text-[10px] px-2 py-0.5 rounded font-bold badge-medium">RESOLVED</span>;
+}
+
+// ── Left Panel: Incident Card ─────────────────────────────────────────────────
+function IncidentCard({ inc, isSelected, onClick }: { inc: SecurityEvent; isSelected: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="w-full text-left p-3 rounded-lg border transition-all mb-2 block"
+      style={{
+        background: isSelected ? '#FFF1F0' : '#FAFAFA',
+        borderColor: isSelected ? '#E53935' : '#E5E7EB',
+        borderLeft: isSelected ? '3px solid #E53935' : '3px solid transparent',
+      }}
+    >
+      <div className="flex items-center justify-between mb-1.5">
+        <SevBadge sev={inc.severity} />
+        <span className="text-[10px] font-mono" style={{ color: '#9CA3AF' }}>
+          {formatDistanceToNow(new Date(inc.timestamp), { addSuffix: true })}
+        </span>
       </div>
-    );
-  }
-  return null;
-};
+      <div className="font-semibold text-xs mb-1" style={{ color: '#111827' }}>
+        {inc.title || inc.type.replace(/_/g, ' ').toUpperCase()}
+      </div>
+      <div className="font-mono text-[10px] truncate" style={{ color: '#9CA3AF' }}>
+        {inc.src_ip} → {inc.target}
+      </div>
+      <div className="flex items-center justify-between mt-2">
+        <span className="text-[10px] px-1.5 py-0.5 rounded font-mono" style={{ background: '#FFF7ED', color: '#EA580C', border: '1px solid #FED7AA' }}>
+          {inc.mitre_tag}
+        </span>
+        <span className="text-[10px] font-semibold" style={{ color: inc.confidence > 85 ? '#E53935' : '#6B7280' }}>
+          {inc.confidence}%
+        </span>
+      </div>
+    </button>
+  );
+}
 
-const IntelligenceInspector = ({ incident, onClose }: { incident: SecurityEvent | null, onClose: () => void }) => {
+// ── Right Panel: Detail View ──────────────────────────────────────────────────
+function IncidentDetail({ inc, onClose }: { inc: SecurityEvent; onClose: () => void }) {
+  const { resolveIncident, escalateIncident, setAutoRemediate } = useStore();
   const navigate = useNavigate();
-  const { updateRemediation, setActivePlaybookId, settings } = useStore();
-  const [executingAction, setExecutingAction] = useState<string | null>(null);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'explanation' | 'graph'>('explanation');
-  const [exporting, setExporting] = useState(false);
+  const [activeTab, setActiveTab] = useState<'explanation' | 'forensic' | 'history'>('explanation');
+  const [copied, setCopied] = useState(false);
 
-  const copyToClipboard = (text: string, id: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
+  const copyId = () => {
+    navigator.clipboard.writeText(inc.id);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
-  const selectedId = new URLSearchParams(window.location.search).get('id');
+  const handleResolve = () => {
+    resolveIncident(inc.id);
+    showToast({ type: 'success', title: 'Mitigation Applied', desc: `Incident ${inc.id.slice(0, 8)} marked as resolved.` });
+  };
 
-  if (!incident) {
-    if (selectedId) {
-        return (
-            <div className="h-full flex flex-col items-center justify-center text-center p-12 space-y-4">
-                <div className="p-6 bg-secondary-card rounded-full border border-teal-accent/20 animate-spin">
-                    <RefreshCcw className="w-12 h-12 text-teal-accent opacity-50" />
+  const handleEscalate = () => {
+    escalateIncident(inc.id);
+    showToast({ type: 'warning', title: 'Incident Escalated', desc: 'Forwarded to Tier-2 SOC.' });
+  };
+
+  const shapFeatures = (inc.shap_features ?? []).slice(0, 6);
+
+  return (
+    <motion.div
+      key={inc.id}
+      initial={{ opacity: 0, x: 12 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: 8 }}
+      className="h-full flex flex-col"
+      style={{ background: '#FFFFFF' }}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between px-6 py-4 border-b shrink-0" style={{ borderColor: '#E5E7EB' }}>
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <SevBadge sev={inc.severity} />
+            <StatusBadge status={inc.status} />
+            <span className="text-[10px] px-1.5 py-0.5 rounded font-mono" style={{ background: '#FFF7ED', color: '#EA580C', border: '1px solid #FED7AA' }}>{inc.mitre_tag}</span>
+          </div>
+          <h2 className="font-semibold text-sm" style={{ color: '#111827' }}>{inc.type.replace(/_/g, ' ').toUpperCase()}</h2>
+          <div className="flex items-center gap-2 mt-1">
+            <span className="font-mono text-xs" style={{ color: '#9CA3AF' }}>ID: {inc.id.slice(0, 12)}…</span>
+            <button onClick={copyId} style={{ color: '#9CA3AF' }}>
+              {copied ? <Check className="w-3 h-3" style={{ color: '#22C55E' }} /> : <Copy className="w-3 h-3" />}
+            </button>
+          </div>
+        </div>
+        <button onClick={onClose} className="btn-ghost p-2">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex border-b px-6 shrink-0" style={{ borderColor: '#E5E7EB' }}>
+        {([['explanation', 'AI Explanation'], ['forensic', 'Forensic Graph'], ['history', 'History']] as const).map(([id, label]) => (
+          <button
+            key={id}
+            onClick={() => setActiveTab(id)}
+            className="px-4 py-3 text-xs font-semibold border-b-2 transition-colors"
+            style={{
+              borderColor: activeTab === id ? '#E53935' : 'transparent',
+              color: activeTab === id ? '#E53935' : '#6B7280',
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Body */}
+      <div className="flex-1 overflow-y-auto p-6">
+        <AnimatePresence mode="wait">
+          {activeTab === 'explanation' && (
+            <motion.div key="exp" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-5">
+
+              {/* Source + Target Grid */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 rounded-lg border" style={{ background: '#FFF1F0', borderColor: '#FECACA' }}>
+                  <div className="text-[10px] uppercase font-bold mb-1" style={{ color: '#9CA3AF' }}>Source Entity</div>
+                  <div className="font-mono text-sm font-bold" style={{ color: '#E53935' }}>{inc.src_ip}</div>
+                  <div className="text-[10px] mt-1" style={{ color: '#6B7280' }}>{inc.layer.toUpperCase()} layer</div>
+                </div>
+                <div className="p-4 rounded-lg border" style={{ background: '#F9FAFB', borderColor: '#E5E7EB' }}>
+                  <div className="text-[10px] uppercase font-bold mb-1" style={{ color: '#9CA3AF' }}>Target Asset</div>
+                  <div className="font-mono text-sm font-bold" style={{ color: '#111827' }}>{inc.target}</div>
+                  <div className="text-xs mt-1 font-semibold" style={{ color: inc.confidence > 85 ? '#E53935' : '#6B7280' }}>
+                    {inc.confidence}% confidence
+                  </div>
+                </div>
+              </div>
+
+              {/* Heuristic Analysis */}
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: '#9CA3AF' }}>Heuristic Analysis</h3>
+                <div className="p-4 rounded-lg border text-sm leading-relaxed" style={{ background: '#F9FAFB', borderColor: '#E5E7EB', color: '#374151' }}>
+                  {inc.explanation}
+                </div>
+              </div>
+
+              {/* SHAP Feature Delta */}
+              {shapFeatures.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: '#9CA3AF' }}>SHAP Feature Delta</h3>
+                  <div className="space-y-2.5">
+                    {shapFeatures.map(f => {
+                      const pct = Math.min(100, Math.abs(f.contribution) * 100);
+                      const isPositive = f.contribution >= 0;
+                      return (
+                        <div key={f.feature} className="space-y-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-medium" style={{ color: '#374151' }}>{f.feature}</span>
+                            <span className="font-mono font-bold" style={{ color: isPositive ? '#E53935' : '#3B82F6' }}>
+                              {isPositive ? '+' : ''}{f.contribution.toFixed(3)}
+                            </span>
+                          </div>
+                          <div className="h-2 rounded-full overflow-hidden" style={{ background: '#F3F4F6' }}>
+                            <div
+                              className="h-full rounded-full transition-all duration-700"
+                              style={{ width: `${pct}%`, background: isPositive ? '#E53935' : '#3B82F6' }}
+                            />
+                          </div>
+                          <div className="text-[10px] font-mono" style={{ color: '#9CA3AF' }}>
+                            Value: {typeof f.value === 'number' ? f.value.toFixed(4) : f.value}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Response Action Nexus */}
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: '#9CA3AF' }}>Response Action Nexus</h3>
+                <div className="flex flex-wrap gap-2">
+                  <button onClick={handleResolve} className="btn-primary text-xs py-2">
+                    <ShieldCheck className="w-3.5 h-3.5" /> Mark Resolved
+                  </button>
+                  <button onClick={handleEscalate} className="btn-ghost text-xs py-2">
+                    <Network className="w-3.5 h-3.5" /> Escalate to T2
+                  </button>
+                  <button
+                    onClick={() => navigate(`/playbooks?inc=${inc.id}`)}
+                    className="btn-ghost text-xs py-2" style={{ color: '#E53935', borderColor: '#FECACA' }}
+                  >
+                    <BookOpen className="w-3.5 h-3.5" /> GO TO PLAYBOOK COMMANDER →
+                  </button>
+                </div>
+              </div>
+
+              {/* Timestamps */}
+              <div className="grid grid-cols-2 gap-3 pt-2 border-t" style={{ borderColor: '#E5E7EB' }}>
+                <div>
+                  <div className="text-[10px] uppercase font-bold mb-1" style={{ color: '#9CA3AF' }}>Detected At</div>
+                  <div className="font-mono text-xs" style={{ color: '#374151' }}>{format(new Date(inc.timestamp), 'MMM dd HH:mm:ss')}</div>
                 </div>
                 <div>
-                    <h3 className="text-white font-heading font-bold text-lg">Synchronizing Intelligence...</h3>
-                    <p className="text-text-muted text-sm max-w-xs">Fetching forensic telemetry for incident {selectedId.slice(0, 8)}</p>
+                  <div className="text-[10px] uppercase font-bold mb-1" style={{ color: '#9CA3AF' }}>Time Elapsed</div>
+                  <div className="font-mono text-xs" style={{ color: '#374151' }}>{formatDistanceToNow(new Date(inc.timestamp))}</div>
                 </div>
-            </div>
-        );
-    }
-
-    return (
-      <div className="h-full flex flex-col items-center justify-center text-center p-12 space-y-4">
-        <div className="p-6 bg-secondary-card rounded-full border border-border-subtle animate-pulse">
-            <Search className="w-12 h-12 text-text-muted opacity-20" />
-        </div>
-        <div>
-            <h3 className="text-white font-heading font-bold text-lg">No Incident Selected</h3>
-            <p className="text-text-muted text-sm max-w-xs">Select a security event from the pulse feed to initiate intelligence inspection.</p>
-        </div>
-      </div>
-    );
-  }
-
-  const chartData = incident.shap_features.map(f => ({
-    name: f.feature,
-    value: f.contribution,
-    color: f.contribution >= 0 ? '#00D4B8' : '#FF4C4C'
-  }));
-
-  const handleAction = async (action: string) => {
-    setExecutingAction(action);
-    await updateRemediation(incident.id, action);
-    setTimeout(() => {
-        setExecutingAction(null);
-    }, 1500);
-  };
-
-  const handleExport = async () => {
-    setExporting(true);
-    const element = document.getElementById('incident-report-root');
-    if (!element) return;
-
-    const opt = {
-      margin: 10,
-      filename: `SentinelAI_Report_${incident.id}.pdf`,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#020617' },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-    };
-
-    try {
-      await html2pdf().from(element).set(opt).save();
-    } catch (err) {
-      console.error("Export failed:", err);
-    } finally {
-      setExporting(false);
-    }
-  };
-
-  const isMitigated = incident.status === 'MITIGATED';
-
-  return (
-    <div className="h-full flex flex-col overflow-hidden bg-background/30 backdrop-blur-md rounded-xl border border-border-subtle shadow-2xl">
-      {/* Inspector Header */}
-      <div className="p-6 border-b border-border-subtle flex justify-between items-center bg-secondary-card/50">
-        <div className="flex items-center gap-4">
-          <div className={`p-2 rounded-lg ${getSeverityColor(incident.severity)}`}>
-            {isMitigated ? <ShieldCheck className="w-6 h-6 text-white" /> : <ShieldAlert className="w-6 h-6" />}
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-                <span className="text-[10px] font-mono text-text-muted uppercase tracking-widest">{incident.id}</span>
-                <span className={`text-[10px] px-1.5 py-0.5 rounded font-black ${isMitigated ? 'bg-teal-accent/20 text-teal-accent' : 'bg-red-alert/10 text-red-alert'}`}>
-                    {isMitigated ? 'MITIGATION APPLIED' : 'AI CONFIRMED'}
-                </span>
-            </div>
-            <h2 className="font-heading font-black text-xl text-white uppercase tracking-tight">{incident.type.replace('_', ' ')}</h2>
-            {/* suspected FP Banner */}
-            {isBusinessHours(incident.timestamp, settings.businessHours) && incident.confidence < 85 && (incident.type === 'exfiltration' || incident.mitre_tag === 'T1053') && (
-                <div className="mt-1 flex items-center gap-2 px-2 py-0.5 bg-orange-warning/10 border border-orange-warning/30 rounded text-[9px] font-black text-orange-warning animate-pulse">
-                    <AlertTriangle className="w-3 h-3" />
-                    SUSPECTED FALSE POSITIVE — OPERATIONAL HOURS DETECTED
-                </div>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-            <button 
-                onClick={handleExport}
-                disabled={exporting}
-                className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg border border-white/10 transition-colors text-[10px] font-black text-text-muted uppercase tracking-widest disabled:opacity-50"
-            >
-                {exporting ? <RefreshCcw className="w-3 h-3 animate-spin" /> : <Share2 className="w-3 h-3" />}
-                {exporting ? 'Exporting...' : 'Export intelligence'}
-            </button>
-            <button onClick={onClose} className="xl:hidden p-2 hover:bg-background rounded-full transition-colors text-text-muted">
-                <X className="w-6 h-6" />
-            </button>
-        </div>
-      </div>
-
-      {/* Tab Navigation */}
-      <div className="px-6 flex border-b border-white/5 bg-secondary-card/20">
-        <button 
-            onClick={() => setActiveTab('explanation')}
-            className={`px-4 py-3 text-[10px] font-black uppercase tracking-widest transition-all border-b-2 ${activeTab === 'explanation' ? 'border-teal-accent text-teal-accent bg-teal-accent/5' : 'border-transparent text-text-muted hover:text-white'}`}
-        >
-            AI Explanation
-        </button>
-        <button 
-            onClick={() => setActiveTab('graph')}
-            className={`px-4 py-3 text-[10px] font-black uppercase tracking-widest transition-all border-b-2 ${activeTab === 'graph' ? 'border-blue-accent text-blue-accent bg-blue-accent/5' : 'border-transparent text-text-muted hover:text-white'}`}
-        >
-            Blast Radius
-        </button>
-      </div>
-
-      {/* Bento Grid Content */}
-      <div id="incident-report-root" className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
-        
-        <AnimatePresence mode="wait">
-            {activeTab === 'explanation' ? (
-                <motion.div 
-                    key="explanation"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="space-y-6"
-                >
-                    {/* Row 1: Key Metadata Bento */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-secondary-card border border-border-subtle p-4 rounded-xl shadow-lg group hover:border-teal-accent/30 transition-colors relative">
-                <div className="flex items-center gap-2 text-text-muted mb-2">
-                    <Target className="w-4 h-4" />
-                    <span className="text-[10px] font-black uppercase tracking-widest">Source Entity</span>
-                </div>
-                <div className="flex items-center justify-between">
-                    <div className="text-lg font-mono font-bold text-red-alert">{incident.src_ip}</div>
-                    <button 
-                        onClick={() => copyToClipboard(incident.src_ip, 'src')}
-                        className="p-1 hover:bg-background rounded text-text-muted hover:text-teal-accent transition-colors relative"
-                        title="Copy Source IP"
-                    >
-                        {copiedId === 'src' ? <Check className="w-3.5 h-3.5 text-teal-accent" /> : <Copy className="w-3.5 h-3.5" />}
-                        {copiedId === 'src' && (
-                            <motion.span 
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className="absolute -top-8 left-1/2 -translate-x-1/2 bg-teal-accent text-background text-[10px] px-2 py-1 rounded font-black whitespace-nowrap"
-                            >
-                                COPIED
-                            </motion.span>
-                        )}
-                    </button>
-                </div>
-                <div className="text-[10px] text-text-muted mt-1">External Reputation: MALEVOLENT</div>
-            </div>
-            <div className="bg-secondary-card border border-border-subtle p-4 rounded-xl shadow-lg group hover:border-teal-accent/30 transition-colors relative">
-                <div className="flex items-center gap-2 text-text-muted mb-2">
-                    <ShieldCheck className="w-4 h-4" />
-                    <span className="text-[10px] font-black uppercase tracking-widest">Target Asset</span>
-                </div>
-                <div className="flex items-center justify-between">
-                    <div className="text-lg font-mono font-bold text-white">{incident.target}</div>
-                    <button 
-                        onClick={() => copyToClipboard(incident.target, 'target')}
-                        className="p-1 hover:bg-background rounded text-text-muted hover:text-teal-accent transition-colors relative"
-                        title="Copy Target Host"
-                    >
-                        {copiedId === 'target' ? <Check className="w-3.5 h-3.5 text-teal-accent" /> : <Copy className="w-3.5 h-3.5" />}
-                        {copiedId === 'target' && (
-                            <motion.span 
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className="absolute -top-8 left-1/2 -translate-x-1/2 bg-teal-accent text-background text-[10px] px-2 py-1 rounded font-black whitespace-nowrap"
-                            >
-                                COPIED
-                            </motion.span>
-                        )}
-                    </button>
-                </div>
-                <div className="text-[10px] text-text-muted mt-1">Asset Criticality: LEVEL 4</div>
-            </div>
-            <div className="bg-secondary-card border border-border-subtle p-4 rounded-xl shadow-lg group hover:border-teal-accent/30 transition-colors">
-                <div className="flex items-center gap-2 text-text-muted mb-2">
-                    <Zap className="w-4 h-4" />
-                    <span className="text-[10px] font-black uppercase tracking-widest">Confidence</span>
-                </div>
-                <div className="text-2xl font-mono font-black text-teal-accent">{incident.confidence}%</div>
-                <div className="w-full bg-background h-1.5 rounded-full mt-1 overflow-hidden">
-                    <motion.div 
-                        initial={{ width: 0 }}
-                        animate={{ width: `${incident.confidence}%` }}
-                        className="h-full bg-teal-accent"
-                    />
-                </div>
-            </div>
-        </div>
-
-        {/* Row 2: Explainability & Analysis */}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            <div className="bg-secondary-card/40 border border-border-subtle p-6 rounded-xl relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-4 opacity-5">
-                    <Brain className="w-32 h-32" />
-                </div>
-                <h3 className="text-white font-heading font-bold flex items-center mb-4">
-                    <Cpu className="w-4 h-4 mr-2 text-teal-accent" />
-                    Heuristic Analysis Plan
-                </h3>
-                <div className="space-y-4">
-                    <div className="p-4 bg-background/50 rounded-lg border border-teal-accent/20">
-                        <p className="text-sm text-text-muted leading-relaxed">
-                            <span className="font-bold text-teal-accent">Summary:</span> {incident.explanation}
-                        </p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3 text-[10px]">
-                        <a 
-                            href={`https://attack.mitre.org/techniques/${incident.mitre_tag}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex justify-between items-center p-2 bg-background/30 rounded border border-transparent hover:border-teal-accent/30 transition-colors group"
-                        >
-                            <span className="text-text-muted uppercase">Framework</span>
-                            <span className="font-mono text-white flex items-center gap-1">
-                                MITRE {incident.mitre_tag}
-                                <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
-                            </span>
-                        </a>
-                        <div className="flex justify-between items-center p-2 bg-background/30 rounded">
-                            <span className="text-text-muted uppercase">Layer</span>
-                            <span className="font-mono text-white tracking-widest uppercase">{incident.layer}</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div className="bg-secondary-card/40 border border-border-subtle p-6 rounded-xl">
-                <h3 className="text-white font-heading font-bold flex items-center mb-4">
-                    <Activity className="w-4 h-4 mr-2 text-orange-warning" />
-                    SHAP Feature Delta
-                </h3>
-                <div className="h-44">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <BarChart layout="vertical" data={chartData} margin={{ top: 0, right: 30, left: 30, bottom: 0 }}>
-                            <XAxis type="number" hide />
-                            <YAxis dataKey="name" type="category" stroke="#8CA0C8" fontSize={10} width={80} axisLine={false} tickLine={false} tickFormatter={(val) => FEATURE_MAP[val]?.label || val} />
-                            <Tooltip cursor={{ fill: 'rgba(255,255,255,0.05)' }} content={<CustomTooltip />} />
-                            <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={12}>
-                                {chartData.map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={entry.color} />
-                                ))}
-                            </Bar>
-                        </BarChart>
-                    </ResponsiveContainer>
-                </div>
-            </div>
-        </div>
-        </motion.div>
-        ) : (
-            <motion.div 
-                key="graph"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="space-y-6"
-            >
-                <div className="bg-secondary-card/40 border border-border-subtle p-6 rounded-xl">
-                    <h3 className="text-white font-heading font-bold flex items-center mb-6">
-                        <Network className="w-4 h-4 mr-2 text-blue-accent" />
-                        Relational Intelligence Analysis
-                    </h3>
-                    <ForensicGraph entityId={incident.src_ip} />
-                    <div className="mt-6 p-4 bg-blue-accent/5 border border-blue-accent/20 rounded-lg">
-                        <h4 className="text-[10px] font-black text-blue-accent uppercase tracking-[0.2em] mb-2">Blast Radius Intelligence</h4>
-                        <p className="text-xs text-slate-400 leading-relaxed">
-                            The graph above visualizes the lateral associations of <span className="text-white font-mono">{incident.src_ip}</span>. 
-                            It maps direct system interactions, user authentications, and file modifications detected within the investigation window.
-                        </p>
-                    </div>
-                </div>
+              </div>
             </motion.div>
-        )}
+          )}
+
+          {activeTab === 'forensic' && (
+            <motion.div key="forensic" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <div className="p-6 rounded-lg border text-center" style={{ background: '#F9FAFB', borderColor: '#E5E7EB' }}>
+                <Activity className="w-10 h-10 mx-auto mb-3" style={{ color: '#D1D5DB' }} />
+                <p className="text-sm font-medium mb-1" style={{ color: '#6B7280' }}>Forensic Graph</p>
+                <p className="text-xs" style={{ color: '#9CA3AF' }}>Network topology view of attack chain entities</p>
+                <div className="mt-4 font-mono text-xs p-3 rounded border text-left" style={{ background: '#FFF1F0', borderColor: '#FECACA', color: '#E53935' }}>
+                  SRC: {inc.src_ip} → TARGET: {inc.target}<br />
+                  LAYER: {inc.layer.toUpperCase()} · TECHNIQUE: {inc.mitre_tag}
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'history' && (
+            <motion.div key="hist" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              {(inc.history ?? []).length === 0 ? (
+                <div className="text-center py-8">
+                  <Clock className="w-8 h-8 mx-auto mb-2" style={{ color: '#D1D5DB' }} />
+                  <p className="text-sm" style={{ color: '#9CA3AF' }}>No actions recorded yet</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {(inc.history ?? []).map((h, i) => (
+                    <div key={i} className="flex gap-4 items-start">
+                      <div className="w-2 h-2 rounded-full mt-1.5 shrink-0" style={{ background: '#E53935' }} />
+                      <div>
+                        <div className="text-sm font-medium" style={{ color: '#111827' }}>{h.action}</div>
+                        <div className="text-xs font-mono mt-0.5" style={{ color: '#9CA3AF' }}>{format(new Date(h.timestamp), 'MMM dd HH:mm:ss')}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </motion.div>
+          )}
         </AnimatePresence>
-
-        {/* Row 3: Remediation Console & Timeline */}
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-            <div className="xl:col-span-2 bg-secondary-card p-6 rounded-xl border border-teal-accent/20 shadow-[0_0_30px_rgba(0,212,184,0.05)]">
-                <h3 className="text-white font-heading font-bold flex items-center mb-6 uppercase tracking-widest text-xs">
-                    <ShieldCheck className="w-4 h-4 mr-2 text-teal-accent" />
-                    Response Action Nexus
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <motion.button 
-                        whileHover={{ scale: isMitigated ? 1 : 1.02 }}
-                        whileTap={{ scale: isMitigated ? 1 : 0.98 }}
-                        disabled={isMitigated || executingAction === 'ISOLATE_IP'}
-                        onClick={() => handleAction('ISOLATE_IP')}
-                        className={`flex items-center justify-center gap-2 border p-4 rounded-xl font-bold transition-all group ${
-                            isMitigated ? 'bg-background text-text-muted border-border-subtle cursor-not-allowed opacity-50' : 
-                            'bg-red-alert/10 hover:bg-red-alert/20 text-red-alert border-red-alert/30'
-                        }`}
-                    >
-                        {executingAction === 'ISOLATE_IP' ? (
-                            <RefreshCcw className="w-5 h-5 animate-spin" />
-                        ) : (
-                            <Network className="w-5 h-5 group-hover:rotate-12 transition-transform" />
-                        )}
-                        <span>{executingAction === 'ISOLATE_IP' ? 'Executing Isolate...' : isMitigated ? 'Already Mitigated' : 'Terminate Flow & Isolate IP'}</span>
-                    </motion.button>
-                    <motion.button 
-                        whileHover={{ scale: isMitigated ? 1 : 1.02 }}
-                        whileTap={{ scale: isMitigated ? 1 : 0.98 }}
-                        disabled={isMitigated || executingAction === 'PASSWORD_RESET'}
-                        onClick={() => handleAction('PASSWORD_RESET')}
-                        className={`flex items-center justify-center gap-2 border p-4 rounded-xl font-bold transition-all group ${
-                            isMitigated ? 'bg-background text-text-muted border-border-subtle cursor-not-allowed opacity-50' : 
-                            'bg-orange-warning/10 hover:bg-orange-warning/20 text-orange-warning border-orange-warning/30'
-                        }`}
-                    >
-                        {executingAction === 'PASSWORD_RESET' ? (
-                            <RefreshCcw className="w-5 h-5 animate-spin" />
-                        ) : (
-                            <RotateCcw className="w-5 h-5 group-hover:-rotate-90 transition-transform" />
-                        )}
-                        <span>{executingAction === 'PASSWORD_RESET' ? 'Executing Reset...' : isMitigated ? 'Already Mitigated' : 'Initiate Credential Reset'}</span>
-                    </motion.button>
-                </div>
-                
-                <motion.button 
-                    whileHover={{ scale: 1.01 }}
-                    whileTap={{ scale: 0.99 }}
-                    onClick={() => {
-                        setActivePlaybookId(incident.id);
-                        navigate('/playbooks');
-                    }}
-                    className="w-full mt-4 bg-teal-accent hover:bg-teal-accent/90 text-background font-black p-4 rounded-xl flex justify-center items-center transition-all shadow-[0_0_30px_rgba(0,212,184,0.3)]"
-                >
-                    GO TO PLAYBOOK COMMANDER <ArrowRight className="ml-2 w-6 h-6" />
-                </motion.button>
-            </div>
-
-            <div className="bg-secondary-card p-6 rounded-xl border border-border-subtle">
-                <h3 className="text-white font-heading font-bold flex items-center mb-6 uppercase tracking-widest text-[10px]">
-                    <Clock className="w-3.5 h-3.5 mr-2 text-text-muted" />
-                    Action History
-                </h3>
-                <div className="space-y-4">
-                    {incident.history?.slice().reverse().map((h, i) => (
-                        <div key={i} className="flex gap-3 border-l-2 border-border-subtle pl-4 relative">
-                            <div className="absolute -left-[5px] top-1.5 w-2 h-2 rounded-full bg-teal-accent shadow-[0_0_10px_rgba(0,212,184,0.8)]" />
-                            <div className="flex-1">
-                                <div className="text-[10px] text-white font-bold uppercase">{h.action.replace('_', ' ')}</div>
-                                <div className="text-[9px] text-text-muted font-mono">{format(new Date(h.timestamp), "HH:mm:ss")} · {h.timestamp.slice(0, 10)}</div>
-                            </div>
-                        </div>
-                    ))}
-                    {(!incident.history || incident.history.length === 0) && (
-                        <div className="text-center py-4 text-text-muted italic text-[10px]">
-                            No investigative actions documented.
-                        </div>
-                    )}
-                </div>
-            </div>
-        </div>
       </div>
-    </div>
+    </motion.div>
   );
-};
+}
 
+// ── Main Incidents Page ────────────────────────────────────────────────────────
 export const Incidents = () => {
   const { incidents } = useStore();
-  const [searchParams, setSearchParams] = useSearchParams();
-  
-  const filter = searchParams.get('filter') || 'All';
-  const selectedId = searchParams.get('id');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchParams] = useSearchParams();
+  const [filter, setFilter] = useState<string>('ALL');
+  const [search, setSearch] = useState('');
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const selectedIncident = useMemo(() => 
-    incidents.find(i => i.id === selectedId) || null
-  , [incidents, selectedId]);
+  // Pre-select from URL param
+  useEffect(() => {
+    const id = searchParams.get('id');
+    if (id) setSelectedId(id);
+  }, [searchParams]);
 
-  const filteredIncidents = useMemo(() => {
-    let result = incidents;
-    if (filter !== 'All') {
-      result = result.filter(i => i.severity === filter.toUpperCase());
-    }
-    if (searchQuery) {
-        result = result.filter(i => 
-            i.src_ip.includes(searchQuery) || 
-            i.type.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            i.id.includes(searchQuery)
-        );
-    }
-    return result.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-  }, [incidents, filter, searchQuery]);
+  const filters = ['ALL', 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
 
-  const setFilter = (f: string) => {
-    setSearchParams(prev => {
-      if (f === 'All') prev.delete('filter');
-      else prev.set('filter', f);
-      return prev;
+  const filtered = useMemo(() => {
+    return incidents.filter(inc => {
+      const matchFilter = filter === 'ALL' || inc.severity === filter;
+      const matchSearch = !search || inc.type.includes(search.toUpperCase()) || inc.src_ip.includes(search) || inc.target.includes(search) || inc.mitre_tag.includes(search.toUpperCase());
+      return matchFilter && matchSearch;
     });
-  };
+  }, [incidents, filter, search]);
 
-  const handleSelectIncident = (id: string) => {
-    setSearchParams(prev => {
-        prev.set('id', id);
-        return prev;
-    });
-  };
+  const selected = incidents.find(i => i.id === selectedId) ?? null;
 
   return (
-    <div className="h-[calc(100vh-140px)] flex flex-col space-y-4">
-      
-      {/* Metrics Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-            <h1 className="text-3xl font-heading font-black text-white flex items-center">
-                <ShieldAlert className="mr-3 text-red-alert w-8 h-8" /> 
-                Threat Incident Pulse
-            </h1>
-            <p className="text-text-muted text-sm mt-1">Real-time analytical triage for confirmed detections.</p>
-        </div>
-        <div className="flex gap-4">
-            <div className="flex items-center gap-2 bg-secondary-card border border-border-subtle px-4 py-2 rounded-lg">
-                <div className="w-2 h-2 rounded-full bg-red-alert animate-ping" />
-                <span className="text-[10px] font-black font-mono text-white">LIVE MONITORING</span>
-            </div>
-        </div>
-      </div>
+    <div className="h-full flex page-enter" style={{ background: '#FFFFFF' }}>
 
-      <div className="flex-1 flex gap-6 overflow-hidden">
-        
-        {/* Master Column: Incident Pulse Feed */}
-        <div className="w-full xl:w-[420px] flex flex-col space-y-4">
-            {/* Search & Filter Mini-Bar */}
-            <div className="bg-card border border-border-subtle p-3 rounded-xl space-y-3">
-                <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-                    <input 
-                        type="text" 
-                        placeholder="Search IP, Technique, ID..." 
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full bg-secondary-card/50 border border-border-subtle rounded-lg py-2 pl-10 pr-4 text-xs font-mono focus:border-teal-accent transition-colors"
-                    />
-                </div>
-                <div className="flex gap-2 overflow-x-auto pb-1 custom-scrollbar">
-                    {['All', 'Critical', 'High', 'Medium'].map(f => (
-                        <button 
-                            key={f}
-                            onClick={() => setFilter(f)}
-                            className={`px-3 py-1.5 rounded-lg text-[10px] uppercase font-black transition-all ${filter === f ? 'bg-teal-accent text-background shadow-lg' : 'bg-secondary-card text-text-muted border border-border-subtle hover:border-teal-accent/50'}`}
-                        >
-                            {f}
-                        </button>
-                    ))}
-                </div>
-            </div>
-
-            {/* Scrollable List */}
-            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
-                <div className="space-y-3">
-                    <AnimatePresence mode="popLayout">
-                        {filteredIncidents.map((inc) => (
-                            <motion.div
-                                key={inc.id}
-                                layout
-                                initial={{ opacity: 0, x: -20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                exit={{ opacity: 0, x: 20 }}
-                                onClick={() => handleSelectIncident(inc.id)}
-                                className={`p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 relative group overflow-hidden ${
-                                    selectedId === inc.id ? `${getSeverityBorder(inc.severity)} bg-secondary-card shadow-2xl scale-[1.02]` : 'border-border-subtle bg-card hover:border-border-subtle/80 hover:bg-secondary-card/50'
-                                }`}
-                            >
-                                {selectedId === inc.id && (
-                                    <motion.div layoutId="selection-glow" className="absolute inset-0 bg-gradient-to-r from-teal-accent/5 to-transparent pointer-events-none" />
-                                )}
-                                
-                                <div className="flex justify-between items-start relative z-10">
-                                    <div className="flex flex-col">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <span className={`text-[9px] font-black px-1.5 py-0.5 rounded tracking-tighter ${getSeverityColor(inc.severity)}`}>
-                                                {inc.severity}
-                                            </span>
-                                            {inc.status === 'MITIGATED' && (
-                                                <span className="bg-teal-accent/10 text-teal-accent text-[8px] px-1 rounded flex items-center gap-0.5">
-                                                    <ShieldCheck className="w-2.5 h-2.5" /> MTG
-                                                </span>
-                                            )}
-                                            <span className="text-[10px] font-mono text-text-muted">CID:{inc.id.slice(0, 8)}</span>
-                                        </div>
-                                        <div className="text-white font-bold text-sm tracking-tight uppercase">{inc.type.replace('_', ' ')}</div>
-                                    </div>
-                                    <div className="text-right">
-                                        <div className="text-[10px] font-mono text-text-muted">{format(new Date(inc.timestamp), "HH:mm:ss")}</div>
-                                        <div className="text-[10px] font-mono text-teal-accent mt-1">{inc.confidence}% Match</div>
-                                    </div>
-                                </div>
-                                
-                                <div className="mt-3 flex justify-between items-center text-[11px] relative z-10">
-                                   <div className="flex items-center text-red-alert font-mono">
-                                        <Target className="w-3 h-3 mr-1" /> {inc.src_ip}
-                                   </div>
-                                   <div className="text-text-muted border border-border-subtle px-1.5 rounded font-mono text-[9px] uppercase">
-                                       {inc.mitre_tag}
-                                   </div>
-                                </div>
-
-                                {selectedId === inc.id && (
-                                    <motion.div 
-                                        layoutId="active-indicator" 
-                                        className="absolute right-0 top-1/2 -translate-y-1/2 w-1.5 h-12 bg-teal-accent rounded-l-full shadow-[0_0_15px_rgba(0,212,184,0.8)]"
-                                    />
-                                )}
-                            </motion.div>
-                        ))}
-                    </AnimatePresence>
-                </div>
-            </div>
-        </div>
-
-        {/* Detail Column: Intelligence Inspector */}
-        <div className="hidden xl:block flex-1">
-            <IntelligenceInspector 
-                incident={selectedIncident} 
-                onClose={() => setSearchParams(prev => { prev.delete('id'); return prev; })} 
+      {/* ── Left Panel (30%) ────────────────────────────────── */}
+      <div className="w-72 shrink-0 flex flex-col border-r" style={{ borderColor: '#E5E7EB' }}>
+        {/* Header */}
+        <div className="px-4 py-4 border-b shrink-0" style={{ borderColor: '#E5E7EB' }}>
+          <div className="flex items-center justify-between mb-3">
+            <h1 className="font-semibold text-sm" style={{ color: '#111827' }}>Threat Incident Pulse</h1>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#FFF1F0', color: '#E53935', border: '1px solid #FECACA' }}>
+              {incidents.length} ACTIVE
+            </span>
+          </div>
+          {/* Search */}
+          <div className="relative mb-3">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: '#9CA3AF' }} />
+            <input
+              type="text"
+              placeholder="Search incidents..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full pl-8 pr-3 py-2 text-xs rounded-lg border outline-none"
+              style={{ background: '#F9FAFB', borderColor: '#E5E7EB', color: '#111827' }}
             />
+          </div>
+          {/* Filter pills */}
+          <div className="flex flex-wrap gap-1.5">
+            {filters.map(f => (
+              <button key={f} onClick={() => setFilter(f)} className={`filter-pill text-[10px] py-1 ${filter === f ? 'active' : ''}`}>
+                {f}
+              </button>
+            ))}
+          </div>
         </div>
 
+        {/* List */}
+        <div className="flex-1 overflow-y-auto p-3">
+          {filtered.length === 0 ? (
+            <div className="text-center py-10">
+              <Search className="w-8 h-8 mx-auto mb-2" style={{ color: '#D1D5DB' }} />
+              <p className="text-xs" style={{ color: '#9CA3AF' }}>No incidents match</p>
+            </div>
+          ) : (
+            filtered.map(inc => (
+              <IncidentCard key={inc.id} inc={inc} isSelected={selectedId === inc.id} onClick={() => setSelectedId(inc.id)} />
+            ))
+          )}
+        </div>
       </div>
 
-      {/* Mobile/Tablet Detail Overlay */}
-      <AnimatePresence>
-        {selectedIncident && (
-            <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="xl:hidden fixed inset-0 z-50 p-4 bg-background/95 backdrop-blur-xl overflow-y-auto"
+      {/* ── Right Panel (70%) ───────────────────────────────── */}
+      <div className="flex-1 overflow-hidden">
+        <AnimatePresence mode="wait">
+          {selected ? (
+            <InspectorErrorBoundary key={selected.id}>
+              <IncidentDetail inc={selected} onClose={() => setSelectedId(null)} />
+            </InspectorErrorBoundary>
+          ) : (
+            <motion.div
+              key="empty"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="h-full flex flex-col items-center justify-center"
             >
-                <div className="max-w-3xl mx-auto h-full">
-                    <IntelligenceInspector 
-                        incident={selectedIncident} 
-                        onClose={() => setSearchParams(prev => { prev.delete('id'); return prev; })} 
-                    />
-                </div>
+              <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4" style={{ background: '#F3F4F6' }}>
+                <Search className="w-8 h-8" style={{ color: '#D1D5DB' }} />
+              </div>
+              <h3 className="font-semibold mb-1" style={{ color: '#374151' }}>No Incident Selected</h3>
+              <p className="text-sm" style={{ color: '#9CA3AF' }}>Click an incident card on the left to view its AI Explanation</p>
             </motion.div>
-        )}
-      </AnimatePresence>
-
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   );
 };
