@@ -6,6 +6,8 @@ import { format } from 'date-fns';
 import { X, Brain, ShieldAlert, AlertTriangle, ArrowRight, Network, RotateCcw, Activity, Search, ShieldCheck, Target, Cpu, Zap, Copy, RefreshCcw, Check, Clock } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import ForensicGraph from '../components/ForensicGraph';
+import html2pdf from 'html2pdf.js';
 
 const getSeverityColor = (sev: string) => {
   switch (sev) {
@@ -39,11 +41,49 @@ const isBusinessHours = (timestamp: string, businessHours: { start: string, end:
   return timeNum >= startNum && timeNum <= endNum;
 };
 
+const FEATURE_MAP: Record<string, { label: string, description: string }> = {
+  'byte_count': { label: 'Payload Volume', description: 'Total bytes transferred in the session. High volume often indicates exfiltration.' },
+  'connection_velocity': { label: 'Burst Rate', description: 'Frequency of connections per second. High velocity suggests automated brute-force or scanning.' },
+  'peer_count': { label: 'Node Proximity', description: 'Number of unique internal endpoints contacted. High count is a primary indicator of Lateral Movement.' },
+  'payload_entropy': { label: 'Encryption Level', description: 'Randomness of data. High entropy suggests encrypted C2 communication or packed malware.' },
+  'port_rarity': { label: 'Port Anomaly', description: 'Unusual destination port usage for this specific asset.' },
+  'login_failures': { label: 'Auth Friction', description: 'Repeated failed authentication attempts.' },
+  'process_depth': { label: 'Tree Complexity', description: 'Depth of the process tree. Deep nesting often hides malicious child processes.' }
+};
+
+const CustomTooltip = ({ active, payload }: any) => {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    const info = FEATURE_MAP[data.name] || { label: data.name, description: 'Neural contribution factor for this detection event.' };
+    
+    return (
+      <div className="bg-[#0a1229]/95 backdrop-blur-xl border border-white/10 p-4 rounded-xl shadow-2xl max-w-[240px]">
+        <div className="flex justify-between items-center mb-2">
+            <span className="text-[10px] font-black text-blue-accent uppercase tracking-[0.2em]">{info.label}</span>
+            <span className={`text-[10px] font-bold ${data.value >= 0 ? 'text-teal-accent' : 'text-red-alert'}`}>
+                {data.value >= 0 ? '+' : ''}{(data.value * 100).toFixed(1)}%
+            </span>
+        </div>
+        <p className="text-[10px] text-white/80 leading-relaxed font-medium">
+            {info.description}
+        </p>
+        <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-between">
+            <span className="text-[8px] text-text-muted font-mono uppercase">Forensic_Vector</span>
+            <div className={`w-1.5 h-1.5 rounded-full ${data.value >= 0 ? 'bg-teal-accent' : 'bg-red-alert'} animate-pulse`} />
+        </div>
+      </div>
+    );
+  }
+  return null;
+};
+
 const IntelligenceInspector = ({ incident, onClose }: { incident: SecurityEvent | null, onClose: () => void }) => {
   const navigate = useNavigate();
   const { updateRemediation, setActivePlaybookId, settings } = useStore();
   const [executingAction, setExecutingAction] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'explanation' | 'graph'>('explanation');
+  const [exporting, setExporting] = useState(false);
 
   const copyToClipboard = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -95,6 +135,28 @@ const IntelligenceInspector = ({ incident, onClose }: { incident: SecurityEvent 
     }, 1500);
   };
 
+  const handleExport = async () => {
+    setExporting(true);
+    const element = document.getElementById('incident-report-root');
+    if (!element) return;
+
+    const opt = {
+      margin: 10,
+      filename: `SentinelAI_Report_${incident.id}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#020617' },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    try {
+      await html2pdf().from(element).set(opt).save();
+    } catch (err) {
+      console.error("Export failed:", err);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const isMitigated = incident.status === 'MITIGATED';
 
   return (
@@ -122,15 +184,50 @@ const IntelligenceInspector = ({ incident, onClose }: { incident: SecurityEvent 
             )}
           </div>
         </div>
-        <button onClick={onClose} className="xl:hidden p-2 hover:bg-background rounded-full transition-colors text-text-muted">
-          <X className="w-6 h-6" />
+        <div className="flex items-center gap-2">
+            <button 
+                onClick={handleExport}
+                disabled={exporting}
+                className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg border border-white/10 transition-colors text-[10px] font-black text-text-muted uppercase tracking-widest disabled:opacity-50"
+            >
+                {exporting ? <RefreshCcw className="w-3 h-3 animate-spin" /> : <Share2 className="w-3 h-3" />}
+                {exporting ? 'Exporting...' : 'Export intelligence'}
+            </button>
+            <button onClick={onClose} className="xl:hidden p-2 hover:bg-background rounded-full transition-colors text-text-muted">
+                <X className="w-6 h-6" />
+            </button>
+        </div>
+      </div>
+
+      {/* Tab Navigation */}
+      <div className="px-6 flex border-b border-white/5 bg-secondary-card/20">
+        <button 
+            onClick={() => setActiveTab('explanation')}
+            className={`px-4 py-3 text-[10px] font-black uppercase tracking-widest transition-all border-b-2 ${activeTab === 'explanation' ? 'border-teal-accent text-teal-accent bg-teal-accent/5' : 'border-transparent text-text-muted hover:text-white'}`}
+        >
+            AI Explanation
+        </button>
+        <button 
+            onClick={() => setActiveTab('graph')}
+            className={`px-4 py-3 text-[10px] font-black uppercase tracking-widest transition-all border-b-2 ${activeTab === 'graph' ? 'border-blue-accent text-blue-accent bg-blue-accent/5' : 'border-transparent text-text-muted hover:text-white'}`}
+        >
+            Blast Radius
         </button>
       </div>
 
       {/* Bento Grid Content */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
+      <div id="incident-report-root" className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
         
-        {/* Row 1: Key Metadata Bento */}
+        <AnimatePresence mode="wait">
+            {activeTab === 'explanation' ? (
+                <motion.div 
+                    key="explanation"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="space-y-6"
+                >
+                    {/* Row 1: Key Metadata Bento */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="bg-secondary-card border border-border-subtle p-4 rounded-xl shadow-lg group hover:border-teal-accent/30 transition-colors relative">
                 <div className="flex items-center gap-2 text-text-muted mb-2">
@@ -246,8 +343,8 @@ const IntelligenceInspector = ({ incident, onClose }: { incident: SecurityEvent 
                     <ResponsiveContainer width="100%" height="100%">
                         <BarChart layout="vertical" data={chartData} margin={{ top: 0, right: 30, left: 30, bottom: 0 }}>
                             <XAxis type="number" hide />
-                            <YAxis dataKey="name" type="category" stroke="#8CA0C8" fontSize={10} width={80} axisLine={false} tickLine={false} />
-                            <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ backgroundColor: '#1E3A5F', border: 'none', borderRadius: '4px' }} />
+                            <YAxis dataKey="name" type="category" stroke="#8CA0C8" fontSize={10} width={80} axisLine={false} tickLine={false} tickFormatter={(val) => FEATURE_MAP[val]?.label || val} />
+                            <Tooltip cursor={{ fill: 'rgba(255,255,255,0.05)' }} content={<CustomTooltip />} />
                             <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={12}>
                                 {chartData.map((entry, index) => (
                                     <Cell key={`cell-${index}`} fill={entry.color} />
@@ -258,6 +355,32 @@ const IntelligenceInspector = ({ incident, onClose }: { incident: SecurityEvent 
                 </div>
             </div>
         </div>
+        </motion.div>
+        ) : (
+            <motion.div 
+                key="graph"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="space-y-6"
+            >
+                <div className="bg-secondary-card/40 border border-border-subtle p-6 rounded-xl">
+                    <h3 className="text-white font-heading font-bold flex items-center mb-6">
+                        <Network className="w-4 h-4 mr-2 text-blue-accent" />
+                        Relational Intelligence Analysis
+                    </h3>
+                    <ForensicGraph entityId={incident.src_ip} />
+                    <div className="mt-6 p-4 bg-blue-accent/5 border border-blue-accent/20 rounded-lg">
+                        <h4 className="text-[10px] font-black text-blue-accent uppercase tracking-[0.2em] mb-2">Blast Radius Intelligence</h4>
+                        <p className="text-xs text-slate-400 leading-relaxed">
+                            The graph above visualizes the lateral associations of <span className="text-white font-mono">{incident.src_ip}</span>. 
+                            It maps direct system interactions, user authentications, and file modifications detected within the investigation window.
+                        </p>
+                    </div>
+                </div>
+            </motion.div>
+        )}
+        </AnimatePresence>
 
         {/* Row 3: Remediation Console & Timeline */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">

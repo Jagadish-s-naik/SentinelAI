@@ -1,8 +1,8 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useStore } from '../store';
-import { Shield, Info, AlertTriangle, Activity, Target, X, ChevronRight, ExternalLink, Download } from 'lucide-react';
+import { Shield, AlertTriangle, Activity, Target, X, ChevronRight, ExternalLink, Download, Zap, TrendingUp, Monitor } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import { format } from 'date-fns';
 
 // Simplified MITRE ATT&CK Matrix definition
@@ -87,8 +87,97 @@ export const MitreMap = () => {
   const navigate = useNavigate();
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
   const [selectedTechnique, setSelectedTechnique] = useState<string | null>(null);
+  const [focusedTactic, setFocusedTactic] = useState<string | null>(null);
   const [lastIncidentId, setLastIncidentId] = useState<string | null>(null);
   const [pulseNode, setPulseNode] = useState<string | null>(null);
+
+  // Aggregate stats
+  const hitCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    incidents.forEach(inc => {
+      if (inc.mitre_tag) {
+        counts[inc.mitre_tag] = (counts[inc.mitre_tag] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [incidents]);
+
+  const maxHits = Math.max(...Object.values(hitCounts), 1);
+
+  // Derive related techniques based on active incidents
+  const relatedTechniques = useMemo(() => {
+    if (!selectedTechnique) return new Set<string>();
+    
+    const related = new Set<string>();
+    // Simple logic: if techniques appear in the same incident or adjacent tactics
+    const activeIncidents = incidents.filter(inc => inc.mitre_tag === selectedTechnique);
+    activeIncidents.forEach(inc => {
+      // Find other techniques in the same 'chain' (simulated context)
+      // For now, we'll just link to other active tags in the store
+      incidents.slice(0, 5).forEach(i => {
+         if (i.mitre_tag && i.mitre_tag !== selectedTechnique) {
+           related.add(i.mitre_tag);
+         }
+      });
+    });
+    return related;
+  }, [selectedTechnique, incidents]);
+
+  // Track new incidents for pulsing animation
+  useEffect(() => {
+    if (incidents.length > 0) {
+      const latest = incidents[0];
+      if (latest.id !== lastIncidentId) {
+        setLastIncidentId(latest.id);
+        if (latest.mitre_tag) {
+          setPulseNode(latest.mitre_tag);
+          const timer = setTimeout(() => setPulseNode(null), 3000);
+          return () => clearTimeout(timer);
+        }
+      }
+    }
+  }, [incidents, lastIncidentId]);
+
+  const stats = useMemo(() => {
+    const totalTechniques = Object.keys(hitCounts).length;
+    const criticalHits = incidents.filter(inc => inc.severity === 'CRITICAL').length;
+    
+    const tacticCounts: Record<string, number> = {};
+    MITRE_TACTICS.forEach(t => {
+      let count = 0;
+      t.techniques.forEach(tech => {
+        count += (hitCounts[tech] || 0);
+      });
+      tacticCounts[t.name] = count;
+    });
+    
+    const mostActiveTactic = Object.entries(tacticCounts).reduce((a, b) => a[1] > b[1] ? a : b, ['None', 0]);
+
+    return { totalTechniques, criticalHits, mostActiveTactic: mostActiveTactic[0] };
+  }, [hitCounts, incidents]);
+
+  const getHeatColor = (tech: string) => {
+    const hits = hitCounts[tech] || 0;
+    if (hits === 0) return 'rgba(148, 163, 184, 0.1)'; // muted
+    const intensity = hits / maxHits;
+    if (intensity > 0.7) return 'rgba(239, 68, 68, 0.4)'; // red-alert
+    if (intensity > 0.3) return 'rgba(245, 158, 11, 0.4)'; // orange-warning
+    return 'rgba(20, 184, 166, 0.4)'; // teal-accent
+  };
+
+  const getBorderColor = (tech: string) => {
+    const hits = hitCounts[tech] || 0;
+    if (hits === 0) return 'rgba(255, 255, 255, 0.05)';
+    const intensity = hits / maxHits;
+    if (intensity > 0.7) return '#ef4444';
+    if (intensity > 0.3) return '#f59e0b';
+    return '#14b8a6';
+  };
+
+  const selectedIncidents = useMemo(() => {
+    if (!selectedTechnique) return [];
+    return incidents.filter(inc => inc.mitre_tag === selectedTechnique);
+  }, [selectedTechnique, incidents]);
 
   const exportHeatmap = () => {
     const data = {
@@ -112,293 +201,380 @@ export const MitreMap = () => {
     link.click();
   };
 
-  // Track new incidents for pulsing animation
-  useEffect(() => {
-    if (incidents.length > 0) {
-      const latest = incidents[0];
-      if (latest.id !== lastIncidentId) {
-        setLastIncidentId(latest.id);
-        if (latest.mitre_tag) {
-          setPulseNode(latest.mitre_tag);
-          const timer = setTimeout(() => setPulseNode(null), 2000);
-          return () => clearTimeout(timer);
-        }
-      }
-    }
-  }, [incidents, lastIncidentId]);
-
-  // Aggregate stats
-  const hitCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    incidents.forEach(inc => {
-      if (inc.mitre_tag) {
-        counts[inc.mitre_tag] = (counts[inc.mitre_tag] || 0) + 1;
-      }
-    });
-    return counts;
-  }, [incidents]);
-
-  const stats = useMemo(() => {
-    const totalTechniques = Object.keys(hitCounts).length;
-    const criticalHits = incidents.filter(inc => inc.severity === 'CRITICAL').length;
-    
-    // Find most active tactic
-    const tacticCounts: Record<string, number> = {};
-    MITRE_TACTICS.forEach(t => {
-      let count = 0;
-      t.techniques.forEach(tech => {
-        count += (hitCounts[tech] || 0);
-      });
-      tacticCounts[t.name] = count;
-    });
-    
-    const mostActiveTactic = Object.entries(tacticCounts).reduce((a, b) => a[1] > b[1] ? a : b, ['None', 0]);
-
-    return { totalTechniques, criticalHits, mostActiveTactic: mostActiveTactic[0] };
-  }, [hitCounts, incidents]);
-
-  const maxHits = Math.max(...Object.values(hitCounts), 1);
-
-  const getHeatmapColor = (techniqueId: string) => {
-    const hits = hitCounts[techniqueId] || 0;
-    if (hits === 0) return 'bg-secondary-card border-border-subtle text-text-muted';
-    
-    const intensity = hits / maxHits;
-    if (intensity > 0.7) return 'bg-red-alert/20 border-red-alert text-red-alert shadow-[0_0_15px_rgba(255,68,68,0.3)]';
-    if (intensity > 0.3) return 'bg-orange-warning/20 border-orange-warning text-orange-warning';
-    return 'bg-teal-accent/20 border-teal-accent text-teal-accent';
-  };
-
-  const selectedIncidents = useMemo(() => {
-    if (!selectedTechnique) return [];
-    return incidents.filter(inc => inc.mitre_tag === selectedTechnique);
-  }, [selectedTechnique, incidents]);
-
   return (
-    <div className="flex h-full space-x-6 overflow-hidden">
+    <div className="flex h-full space-x-6 overflow-hidden bg-[#050b18]">
       
       <div className="flex-1 flex flex-col space-y-6 overflow-hidden">
-        {/* Header & Stats */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 shrink-0">
-          <div className="lg:col-span-2 bg-card border border-border-subtle rounded-xl p-6 shadow-lg flex justify-between items-center">
+        
+        {/* Kinetic Header */}
+        <div className="shrink-0 space-y-4">
+          <div className="flex justify-between items-end">
             <div>
-              <h1 className="text-2xl font-heading font-bold text-white mb-2 flex items-center">
-                <Shield className="mr-3 text-blue-accent" /> MITRE ATT&CK Matrix Heatmap
-              </h1>
-              <p className="text-text-muted text-sm max-w-xl">
-                Live observation coverage mapped to the MITRE ATT&CK framework.
-                Highlights indicate real-time technique usage based on active telemetry.
+              <div className="flex items-center space-x-2 mb-1">
+                <div className="w-1 h-4 bg-blue-accent rounded-full animate-pulse" />
+                <h1 className="text-2xl font-heading font-black text-white tracking-tight flex items-center">
+                  MITRE <span className="text-blue-accent ml-2">KINETIC</span> MATRIX
+                </h1>
+              </div>
+              <p className="text-text-muted text-sm font-medium">
+                Autonomous behavior mapping & multi-vector threat tracing.
               </p>
             </div>
-            <button 
-              onClick={exportHeatmap}
-              className="px-4 py-2 bg-blue-accent/10 border border-blue-accent/30 text-blue-accent hover:bg-blue-accent hover:text-white rounded-lg text-xs font-bold transition-all flex items-center gap-2 group shrink-0"
-            >
-              <Download className="w-4 h-4 group-hover:animate-bounce" /> DOWNLOAD_INTEL
-            </button>
+            
+            <div className="flex items-center space-x-4">
+               <div className="flex bg-card/40 backdrop-blur-md border border-white/5 rounded-lg p-1">
+                  <button 
+                    onClick={() => setFocusedTactic(null)}
+                    className={`px-3 py-1.5 text-[10px] font-bold rounded-md transition-all ${!focusedTactic ? 'bg-blue-accent text-white' : 'text-text-muted hover:text-white'}`}
+                  >
+                    FULL_MATRIX
+                  </button>
+                  <button 
+                    disabled={!selectedTechnique}
+                    onClick={() => {
+                        if (selectedTechnique) {
+                            const tactic = MITRE_TACTICS.find(t => t.techniques.includes(selectedTechnique));
+                            if (tactic) setFocusedTactic(tactic.id);
+                        }
+                    }}
+                    className={`px-3 py-1.5 text-[10px] font-bold rounded-md transition-all ${focusedTactic && selectedTechnique && MITRE_TACTICS.find(t => t.id === focusedTactic)?.techniques.includes(selectedTechnique) ? 'bg-blue-accent text-white' : 'text-text-muted hover:text-white'}`}
+                  >
+                    FOCUS_CHAIN
+                  </button>
+               </div>
+               <button 
+                onClick={exportHeatmap}
+                className="p-2.5 bg-blue-accent/10 border border-blue-accent/20 text-blue-accent hover:bg-blue-accent hover:text-white rounded-xl transition-all shadow-lg group"
+               >
+                <Download className="w-4 h-4 group-hover:scale-110" />
+               </button>
+            </div>
           </div>
 
-          <div className="bg-card border border-border-subtle rounded-xl p-4 flex justify-between items-center shadow-lg">
-             <div className="space-y-4 w-full">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs text-text-muted flex items-center"><Activity className="w-3 h-3 mr-1 text-teal-accent" /> Observed Techniques</span>
-                  <span className="text-sm font-bold text-white bg-teal-accent/10 px-2 py-0.5 rounded border border-teal-accent/20">{stats.totalTechniques}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-xs text-text-muted flex items-center"><AlertTriangle className="w-3 h-3 mr-1 text-red-alert" /> Critical Hits</span>
-                  <span className="text-sm font-bold text-red-alert bg-red-alert/10 px-2 py-0.5 rounded border border-red-alert/20">{stats.criticalHits}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-xs text-text-muted flex items-center"><Target className="w-3 h-3 mr-1 text-blue-accent" /> Active Tactic</span>
-                  <span className="text-xs font-bold text-blue-accent truncate max-w-[100px] text-right">{stats.mostActiveTactic}</span>
-                </div>
+          <div className="grid grid-cols-4 gap-4">
+            {[
+              { label: 'Intelligence Coverage', value: '94.2%', icon: Monitor, color: 'text-blue-accent' },
+              { label: 'Observed Techniques', value: stats.totalTechniques, icon: Activity, color: 'text-teal-accent' },
+              { label: 'Critical Path Hits', value: stats.criticalHits, icon: AlertTriangle, color: 'text-red-alert' },
+              { label: 'Peak Activation', value: stats.mostActiveTactic.split(' ')[0], icon: Target, color: 'text-orange-warning' }
+            ].map((s, i) => (
+              <div key={i} className="bg-card/30 backdrop-blur-xl border border-white/5 rounded-2xl p-4 flex items-center space-x-4 shadow-xl">
+                 <div className={`p-2.5 rounded-xl bg-background/50 border border-white/5 ${s.color}`}>
+                    <s.icon className="w-5 h-5" />
+                 </div>
+                 <div>
+                    <p className="text-[10px] text-text-muted uppercase font-bold tracking-wider">{s.label}</p>
+                    <p className="text-lg font-black text-white">{s.value}</p>
+                 </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Intelligence Ticker */}
+          <div className="bg-[#0a1229]/80 backdrop-blur-md border-y border-white/5 h-8 flex items-center overflow-hidden relative">
+             <div className="absolute left-0 h-full w-24 bg-gradient-to-r from-[#050b18] to-transparent z-10 flex items-center pl-4">
+                <Zap className="w-3 h-3 text-blue-accent animate-pulse mr-2" />
+                <span className="text-[9px] font-black text-blue-accent uppercase">Live_Feed</span>
              </div>
+             <motion.div 
+               animate={{ x: [1000, -2000] }}
+               transition={{ duration: 40, repeat: Infinity, ease: "linear" }}
+               className="whitespace-nowrap flex space-x-12"
+             >
+                {incidents.slice(0, 10).map((inc, i) => (
+                  <div key={i} className="flex items-center space-x-2">
+                    <span className="text-[10px] text-text-muted font-mono">[{format(new Date(inc.timestamp), 'HH:mm:ss')}]</span>
+                    <span className="text-[10px] text-white font-bold">{inc.severity} Hit:</span>
+                    <span className="text-[10px] text-blue-accent underline cursor-pointer">{inc.mitre_tag || 'Unknown'}</span>
+                    <ChevronRight className="w-3 h-3 text-text-muted" />
+                  </div>
+                ))}
+             </motion.div>
           </div>
         </div>
 
         {/* Matrix Grid */}
-        <div className="bg-card border border-border-subtle rounded-xl shadow-lg flex-1 overflow-x-auto p-4 custom-scrollbar">
-          <div className="flex min-w-max gap-4 pb-4 items-start">
-            {MITRE_TACTICS.map((tactic) => (
-              <div key={tactic.id} className="flex flex-col w-52 shrink-0 group/column transition-all duration-300 hover:z-50">
-                <div className="bg-[#1a2444] border border-blue-accent/30 rounded-lg p-3 mb-4 sticky top-0 z-10 text-center shadow-lg group-hover/column:border-blue-accent transition-colors">
-                  <h3 className="font-heading font-bold text-xs text-white uppercase tracking-wider truncate px-1">{tactic.name}</h3>
-                  <span className="text-[10px] text-blue-accent/70 font-mono block mt-0.5">{tactic.id}</span>
-                </div>
+        <div className="flex-1 bg-card/20 backdrop-blur-2xl rounded-3xl border border-white/5 overflow-hidden shadow-2xl relative group/matrix">
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-accent/5 via-transparent to-red-alert/5 pointer-events-none" />
+          
+          {/* Focus Mode Overlay */}
+          <AnimatePresence>
+            {focusedTactic && (
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 z-40 bg-[#050b18]/40 backdrop-blur-[2px] pointer-events-none"
+              />
+            )}
+          </AnimatePresence>
 
-                <div className="flex flex-col gap-2">
-                  {tactic.techniques.map((tech) => {
-                    const hits = hitCounts[tech] || 0;
-                    const isHovered = hoveredNode === tech;
-                    const isSelected = selectedTechnique === tech;
-                    const isPulsing = pulseNode === tech;
-
-                    return (
-                      <motion.div 
-                        key={tech}
-                        layoutId={`node-${tech}`}
-                        onMouseEnter={() => setHoveredNode(tech)}
-                        onMouseLeave={() => setHoveredNode(null)}
-                        onClick={() => setSelectedTechnique(tech)}
-                        animate={isPulsing ? {
-                          scale: [1, 1.05, 1],
-                          brightness: [1, 1.5, 1],
-                        } : {}}
-                        className={`relative p-3 rounded-lg border text-sm transition-all duration-300 cursor-pointer ${isSelected ? 'ring-2 ring-blue-accent z-30' : ''} ${getHeatmapColor(tech)} ${isHovered ? 'scale-[1.03] z-20 brightness-110 shadow-xl' : ''}`}
+          {/* Focus Indicator Banner */}
+          <AnimatePresence>
+            {focusedTactic && (
+              <motion.div 
+                initial={{ y: -50, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: -50, opacity: 0 }}
+                className="absolute top-4 left-1/2 -translate-x-1/2 z-50 px-6 py-2 bg-blue-accent/90 backdrop-blur-xl border border-white/20 rounded-full shadow-[0_0_40px_rgba(45,108,223,0.5)] flex items-center space-x-3 pointer-events-auto cursor-pointer"
+                onClick={() => setFocusedTactic(null)}
+              >
+                <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                <span className="text-[10px] font-black text-white tracking-[0.2em] uppercase">Focus Mode Active: {MITRE_TACTICS.find(t => t.id === focusedTactic)?.name}</span>
+                <X className="w-3 h-3 text-white/70 hover:text-white transition-colors" />
+              </motion.div>
+            )}
+          </AnimatePresence>
+          <div className="h-full overflow-x-auto p-8 custom-scrollbar relative z-10">
+            <LayoutGroup>
+              <div className="flex min-w-max gap-6 items-start">
+                {MITRE_TACTICS.map((tactic) => {
+                  const isFocused = focusedTactic === tactic.id || !focusedTactic;
+                  const tacticHits = tactic.techniques.reduce((sum, tech) => sum + (hitCounts[tech] || 0), 0);
+                  
+                  return (
+                    <motion.div 
+                      key={tactic.id} 
+                      layout
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ 
+                        opacity: isFocused ? 1 : 0.2, 
+                        y: 0,
+                        filter: isFocused ? 'blur(0px)' : 'blur(8px)',
+                        scale: isFocused ? 1 : 0.95,
+                        zIndex: isFocused ? 45 : 1
+                      }}
+                      className="flex flex-col w-56 shrink-0 group/column relative transition-all duration-700"
+                    >
+                      {!isFocused && (
+                        <div className="absolute inset-0 z-50 cursor-pointer" onClick={() => setFocusedTactic(tactic.id)} />
+                      )}
+                      <div 
+                        onClick={() => setFocusedTactic(focusedTactic === tactic.id ? null : tactic.id)}
+                        className={`bg-[#0a1229]/90 backdrop-blur-xl border-l-2 ${tacticHits > 0 ? 'border-blue-accent' : 'border-white/5'} rounded-r-xl p-4 mb-6 sticky top-0 z-20 cursor-pointer hover:bg-blue-accent/5 transition-all group`}
                       >
-                        <div className="flex justify-between items-center mb-1.5 pt-0.5">
-                          <span className="font-mono text-[9px] uppercase tracking-wider opacity-60">{tech}</span>
-                          {hits > 0 && (
-                            <div className="flex items-center bg-white/10 px-1.5 py-0.5 rounded border border-white/10">
-                              <Activity className="w-2.5 h-2.5 mr-1" />
-                              <span className="font-bold text-[10px]">{hits}</span>
-                            </div>
-                          )}
+                        <div className="flex justify-between items-center mb-1">
+                          <h3 className="font-heading font-black text-[11px] text-white uppercase tracking-widest">{tactic.name}</h3>
+                          {tacticHits > 0 && <span className="w-1.5 h-1.5 bg-blue-accent rounded-full animate-ping" />}
                         </div>
-                        <p className="leading-snug font-bold text-[11px] min-h-[32px] overflow-hidden line-clamp-2">
-                          {TECHNIQUE_NAMES[tech] || 'Unknown Technique'}
-                        </p>
+                        <div className="flex justify-between items-center">
+                          <span className="text-[9px] text-blue-accent font-mono font-bold tracking-widest">{tactic.id}</span>
+                          <span className="text-[10px] text-text-muted font-bold">{tacticHits} <span className="opacity-50 tracking-tighter">EVENTS</span></span>
+                        </div>
+                      </div>
 
-                        {isPulsing && (
-                          <motion.div 
-                            layoutId={`pulse-ring-${tech}`}
-                            className="absolute inset-0 border-2 border-white rounded-lg pointer-events-none"
-                            initial={{ opacity: 0, scale: 1 }}
-                            animate={{ opacity: [0, 1, 0], scale: [1, 1.2, 1.3] }}
-                            transition={{ duration: 1.5 }}
-                          />
-                        )}
+                      <div className="flex flex-col gap-3">
+                        {tactic.techniques.map((tech) => {
+                          const hits = hitCounts[tech] || 0;
+                          const isHovered = hoveredNode === tech;
+                          const isSelected = selectedTechnique === tech;
+                          const isRelated = relatedTechniques.has(tech);
+                          const isPulsing = pulseNode === tech;
 
-                        <AnimatePresence>
-                          {isHovered && !selectedTechnique && (
+                          return (
                             <motion.div 
-                              initial={{ opacity: 0, x: -10, scale: 0.95 }}
-                              animate={{ opacity: 1, x: 0, scale: 1 }}
-                              exit={{ opacity: 0, x: -10, scale: 0.95 }}
-                              className="absolute top-0 left-[calc(100%+12px)] p-5 bg-[#0d152b]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-[0_30px_60px_-15px_rgba(0,0,0,0.7)] z-[100] text-white w-[280px] pointer-events-none before:content-[''] before:absolute before:top-6 before:-left-2 before:w-4 before:h-4 before:bg-[#0d152b] before:border-l before:border-b before:border-white/10 before:rotate-45"
+                              key={tech}
+                              layoutId={`node-${tech}`}
+                              onMouseEnter={() => setHoveredNode(tech)}
+                              onMouseLeave={() => setHoveredNode(null)}
+                              onClick={() => setSelectedTechnique(tech)}
+                              animate={isPulsing ? {
+                                boxShadow: ['0 0 0px #fff', '0 0 20px #fff', '0 0 0px #fff'],
+                                scale: [1, 1.05, 1],
+                              } : {}}
+                              className={`
+                                relative p-4 rounded-2xl border transition-all duration-500 cursor-pointer group/card
+                                ${isSelected ? 'ring-2 ring-blue-accent z-30 shadow-[0_0_30px_rgba(45,108,223,0.3)]' : ''}
+                                ${isHovered ? 'scale-[1.05] z-20 shadow-2xl brightness-125' : ''}
+                                ${isRelated ? 'ring-2 ring-blue-accent/30 scale-[1.02] border-blue-accent/50' : ''}
+                              `}
+                              style={{ 
+                                background: isHovered || isSelected ? 
+                                  `linear-gradient(135deg, ${getHeatColor(tech)}, rgba(10, 18, 41, 0.9)) ` : 
+                                  `linear-gradient(135deg, rgba(255, 255, 255, 0.03), rgba(10, 18, 41, 0.95))`,
+                                borderColor: isSelected || isHovered ? getBorderColor(tech) : 'rgba(255, 255, 255, 0.05)',
+                                backdropFilter: 'blur(16px)',
+                                boxShadow: isHovered ? `0 20px 40px -10px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.1)` : 'none'
+                              }}
                             >
-                              <div className="relative z-10">
-                                <div className="flex items-center space-x-2 mb-3">
-                                  <div className="w-1.5 h-6 bg-blue-accent rounded-full" />
-                                  <span className="text-[10px] text-blue-accent uppercase font-black tracking-[0.2em]">Technique Detail</span>
-                                </div>
-                                <p className="text-[11px] text-text-muted leading-relaxed mb-4">
-                                  {TECHNIQUE_DESCRIPTIONS[tech] || "Advanced behavioral monitoring is active for this MITRE technique, capturing multi-vector telemetry."}
-                                </p>
-                                <div className="flex items-center justify-between pt-4 border-t border-white/5">
-                                  <div className="flex items-center space-x-1.5">
-                                    <Activity className={`w-3.5 h-3.5 ${hits > 0 ? 'text-teal-accent' : 'text-text-muted opacity-50'}`} />
-                                    <span className={`text-xs font-bold ${hits > 0 ? 'text-teal-accent' : 'text-text-muted'}`}>
-                                      {hits} {hits === 1 ? 'Hit' : 'Hits'}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center text-[10px] text-blue-accent font-bold">
-                                    Click to investigate <ChevronRight className="w-3 h-3 ml-0.5" />
-                                  </div>
-                                </div>
-                              </div>
+                               {/* Depth & Highlights */}
+                               <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent rounded-2xl pointer-events-none opacity-0 group-hover/card:opacity-100 transition-opacity duration-500" />
+                               <div className="absolute inset-[1px] bg-gradient-to-tl from-transparent via-transparent to-white/5 rounded-[15px] pointer-events-none" />
+                               
+                               {/* Scanning Line Animation on Hover */}
+                               {isHovered && (
+                                 <motion.div 
+                                    initial={{ top: '0%' }}
+                                    animate={{ top: '100%' }}
+                                    transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
+                                    className="absolute left-0 right-0 h-[1px] bg-white/20 z-0 pointer-events-none"
+                                 />
+                               )}
+                               
+                               <div className="flex justify-between items-start mb-3 relative z-10">
+                                 <div className="px-2 py-0.5 bg-black/30 rounded-md border border-white/5">
+                                   <span className="font-mono text-[9px] text-white opacity-80 tracking-widest">{tech}</span>
+                                 </div>
+                                 {hits > 0 && (
+                                   <div className="flex items-center space-x-1">
+                                     <TrendingUp className="w-3 h-3 text-white" />
+                                     <span className="font-black text-[10px] text-white">{hits}</span>
+                                   </div>
+                                 )}
+                               </div>
+
+                               <p className="leading-tight font-black text-[12px] text-white mb-2 min-h-[30px] line-clamp-2 relative z-10 group-hover/card:text-blue-accent transition-colors">
+                                 {TECHNIQUE_NAMES[tech] || 'Unknown'}
+                               </p>
+
+                               {/* Path Tracer Animated Edge (if selected) */}
+                               {isSelected && (
+                                 <motion.div 
+                                   layoutId="path-tracer"
+                                   className="absolute -right-6 top-1/2 w-6 h-px bg-gradient-to-r from-blue-accent to-transparent z-0"
+                                   initial={{ scaleX: 0 }}
+                                   animate={{ scaleX: 1 }}
+                                 />
+                               )}
                             </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </motion.div>
-                    );
-                  })}
-                </div>
+                          );
+                        })}
+                      </div>
+                    </motion.div>
+                  );
+                })}
               </div>
-            ))}
+            </LayoutGroup>
           </div>
         </div>
       </div>
 
-      {/* Side Drawer for Selection Detail */}
+      {/* Modern Perspective Sidebar */}
       <AnimatePresence>
         {selectedTechnique && (
           <motion.div 
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="w-96 bg-card border-l border-border-subtle shadow-2xl flex flex-col shrink-0"
+            initial={{ x: 400, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: 400, opacity: 0 }}
+            transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+            className="w-[420px] bg-[#0a1229]/95 backdrop-blur-3xl border-l border-white/10 shadow-[0_0_100px_rgba(0,0,0,0.8)] flex flex-col shrink-0 z-[100] relative"
           >
-            <div className="p-6 border-b border-border-subtle flex justify-between items-center bg-[#0a1229]">
-               <div>
-                  <h2 className="text-lg font-heading font-bold text-white flex items-center">
-                    <Shield className="w-4 h-4 mr-2 text-blue-accent" /> Technique Details
-                  </h2>
-                  <p className="text-xs text-blue-accent font-mono">{selectedTechnique}</p>
+            {/* Glossy Header */}
+            <div className="p-8 border-b border-white/5 relative overflow-hidden">
+               <div className="absolute top-0 right-0 p-8 opacity-5">
+                  <Shield className="w-32 h-32 text-blue-accent rotate-12" />
                </div>
-               <button 
-                onClick={() => setSelectedTechnique(null)}
-                className="p-2 hover:bg-white/5 rounded-full transition-colors"
-               >
-                 <X className="w-5 h-5 text-text-muted" />
-               </button>
+               
+               <div className="flex justify-between items-start relative z-10">
+                  <div className="space-y-1">
+                    <div className="flex items-center space-x-2">
+                       <Zap className="w-4 h-4 text-blue-accent" />
+                       <span className="text-[10px] font-black text-blue-accent uppercase tracking-[0.3em]">Behavior_Analysis</span>
+                    </div>
+                    <h2 className="text-2xl font-black text-white leading-tight mt-2 italic">
+                      {TECHNIQUE_NAMES[selectedTechnique]}
+                    </h2>
+                    <p className="text-xs text-text-muted font-mono">{selectedTechnique}</p>
+                  </div>
+                  <button 
+                    onClick={() => setSelectedTechnique(null)}
+                    className="p-2 bg-white/5 hover:bg-white/10 rounded-full transition-all group"
+                  >
+                    <X className="w-5 h-5 text-white group-hover:rotate-90 transition-transform" />
+                  </button>
+               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
-              <div className="space-y-2">
-                <h3 className="text-md font-bold text-white">{TECHNIQUE_NAMES[selectedTechnique]}</h3>
-                <p className="text-xs text-text-muted leading-relaxed italic">
-                  {TECHNIQUE_DESCRIPTIONS[selectedTechnique] || "Analysis coverage includes real-time behavioral monitoring and multi-stage detection signatures for this specific MITRE technique."}
-                </p>
-                <a 
-                  href={`https://attack.mitre.org/techniques/${selectedTechnique}`} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center text-[10px] text-blue-accent hover:underline mt-2"
-                >
-                  <ExternalLink className="w-2 h-2 mr-1" /> Official MITRE Documentation
-                </a>
+            <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-[11px] font-black text-text-muted uppercase tracking-widest">Technique Context</h3>
+                  <a 
+                    href={`https://attack.mitre.org/techniques/${selectedTechnique}`} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-[10px] text-blue-accent hover:underline flex items-center"
+                  >
+                    <ExternalLink className="w-3 h-3 mr-1" /> MITRE_DOCS
+                  </a>
+                </div>
+                <div className="bg-background/50 border border-white/5 rounded-2xl p-4">
+                  <p className="text-xs text-text-muted leading-relaxed">
+                    {TECHNIQUE_DESCRIPTIONS[selectedTechnique] || "Advanced behavioral monitoring is currently processing multi-stage detection signatures for this specific MITRE technique. Threat patterns are being cross-referenced with global intelligence feeds."}
+                  </p>
+                </div>
               </div>
 
-              <div className="space-y-4 pt-4 border-t border-border-subtle">
+              {/* Related Chain */}
+              <div className="space-y-4">
+                <h3 className="text-[11px] font-black text-text-muted uppercase tracking-widest flex items-center">
+                  <TrendingUp className="w-3 h-3 mr-2 text-teal-accent" /> Contextual Connections
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {Array.from(relatedTechniques).map(tech => (
+                    <div 
+                      key={tech}
+                      onClick={() => setSelectedTechnique(tech)}
+                      className="px-3 py-1.5 bg-blue-accent/5 border border-blue-accent/20 rounded-full text-[10px] font-bold text-blue-accent cursor-pointer hover:bg-blue-accent hover:text-white transition-all"
+                    >
+                      {tech}
+                    </div>
+                  ))}
+                  {relatedTechniques.size === 0 && <span className="text-[10px] text-text-muted italic">No active chain detected...</span>}
+                </div>
+              </div>
+
+              <div className="space-y-4 pt-4 border-t border-white/5">
                 <div className="flex justify-between items-center">
-                  <h4 className="text-xs font-bold text-white uppercase tracking-wider">Related Incidents</h4>
-                  <span className="text-[10px] bg-blue-accent/10 border border-blue-accent/20 px-2 py-0.5 rounded text-blue-accent">
-                    {selectedIncidents.length} Match(es)
-                  </span>
+                  <h4 className="text-[11px] font-black text-white uppercase tracking-widest">Active Incident Stream</h4>
+                  <div className="px-2 py-0.5 bg-red-alert/10 border border-red-alert/20 rounded text-[10px] font-black text-red-alert">
+                    {selectedIncidents.length} EVENTS
+                  </div>
                 </div>
 
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {selectedIncidents.length > 0 ? (
                     selectedIncidents.map(inc => (
-                      <div 
+                      <motion.div 
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
                         key={inc.id} 
                         onClick={() => navigate(`/incidents?id=${inc.id}`)}
-                        className="p-3 bg-background border border-border-subtle rounded-lg hover:border-blue-accent cursor-pointer transition-colors group"
+                        className="p-4 bg-background border border-white/5 rounded-2xl hover:border-blue-accent/50 cursor-pointer transition-all group relative overflow-hidden"
                       >
-                         <div className="flex justify-between items-start mb-2">
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
-                              inc.severity === 'CRITICAL' ? 'bg-red-alert/10 text-red-alert border border-red-alert/30' :
-                              inc.severity === 'HIGH' ? 'bg-orange-warning/10 text-orange-warning border border-orange-warning/30' :
-                              'bg-teal-accent/10 text-teal-accent border border-teal-accent/30'
+                         <div className="absolute top-0 left-0 w-1 h-full bg-blue-accent opacity-0 group-hover:opacity-100 transition-opacity" />
+                         <div className="flex justify-between items-center mb-3">
+                            <span className={`text-[9px] px-2 py-0.5 rounded-md font-black tracking-tighter ${
+                              inc.severity === 'CRITICAL' ? 'bg-red-alert/20 text-red-alert' :
+                              inc.severity === 'HIGH' ? 'bg-orange-warning/20 text-orange-warning' :
+                              'bg-teal-accent/20 text-teal-accent'
                             }`}>
                               {inc.severity}
                             </span>
                             <span className="text-[10px] text-text-muted font-mono">{format(new Date(inc.timestamp), 'HH:mm:ss')}</span>
                          </div>
-                         <p className="text-xs text-white font-medium mb-1 line-clamp-2">{inc.explanation}</p>
-                         <div className="flex items-center text-[10px] text-blue-accent opacity-0 group-hover:opacity-100 transition-opacity">
-                            Investigation <ChevronRight className="w-2 h-2 ml-1" />
+                         <p className="text-[11px] text-white font-bold mb-2 line-clamp-2">{inc.explanation}</p>
+                         <div className="flex items-center text-[10px] text-blue-accent font-black tracking-widest opacity-0 group-hover:opacity-100 translate-x-[-10px] group-hover:translate-x-0 transition-all">
+                            INVESTIGATE_PATH <ChevronRight className="w-3 h-3 ml-1" />
                          </div>
-                      </div>
+                      </motion.div>
                     ))
                   ) : (
-                    <div className="py-8 text-center bg-background/50 rounded-lg border border-dashed border-border-subtle">
-                       <Activity className="w-8 h-8 text-text-muted opacity-20 mx-auto mb-2" />
-                       <p className="text-xs text-text-muted italic">No active incidents detected for this technique in the current window.</p>
+                    <div className="py-12 text-center bg-background/30 rounded-3xl border border-dashed border-white/5">
+                       <Activity className="w-10 h-10 text-text-muted opacity-10 mx-auto mb-3" />
+                       <p className="text-xs text-text-muted italic">Awaiting behavioral triggers...</p>
                     </div>
                   )}
                 </div>
               </div>
             </div>
 
-            <div className="p-4 bg-background border-t border-border-subtle">
+            <div className="p-8 bg-[#0a1229] border-t border-white/5">
                <button 
                 onClick={() => navigate(`/incidents?mitre=${selectedTechnique}`)}
-                className="w-full py-3 bg-blue-accent hover:bg-blue-accent/90 text-white rounded-lg text-sm font-bold flex items-center justify-center shadow-[0_0_15px_rgba(45,108,223,0.3)]"
+                className="w-full py-4 bg-blue-accent hover:bg-blue-accent/90 text-white rounded-2xl text-xs font-black tracking-[.2em] flex items-center justify-center shadow-[0_20px_40px_-10px_rgba(45,108,223,0.5)] group transition-all"
                >
-                 View All in Incident List <ExternalLink className="w-4 h-4 ml-2" />
+                 LAUNCH_FORENSICS <ExternalLink className="w-4 h-4 ml-3 group-hover:rotate-12 transition-transform" />
                </button>
             </div>
           </motion.div>

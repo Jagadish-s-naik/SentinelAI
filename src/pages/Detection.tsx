@@ -151,27 +151,17 @@ const EventInspector = ({ log }: { log: any | null }) => {
   }
 
   const timestamp = format(new Date(log.timestamp), "HH:mm:ss.SSS");
-  const severity = (Math.random() * 0.4 + 0.1).toFixed(2);
+  const severityNum = Math.random() * 0.4 + 0.1;
 
   return (
     <div className="h-full flex flex-col overflow-hidden bg-card/10">
       {/* Detail Header */}
-      <div className="p-6 border-b border-white/5 bg-secondary-card/40">
-        <div className="flex justify-between items-start mb-4">
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded bg-teal-accent/10 border border-teal-accent/20 text-[10px] font-bold text-teal-accent">
-                {log.layer.toUpperCase()}
-              </span>
-              <span className="text-[10px] text-text-muted font-mono">SID: {log.id.toUpperCase().substring(0, 12)}</span>
-            </div>
-            <h2 className="text-xl font-heading font-bold text-white mt-1">Intelligence Report</h2>
-          </div>
-          <div className="flex flex-col items-end gap-2">
-             <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-red-500/10 border border-red-500/20">
-                <span className="text-[10px] font-bold text-red-400 font-mono">RISK: {severity}</span>
-             </div>
-             <p className="text-[10px] text-text-muted font-mono uppercase tracking-widest">{timestamp}</p>
+      <div className="p-6 border-b border-white/5 bg-black/20">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="flex items-center gap-2 px-3 py-1 rounded bg-black/40 border border-white/5">
+             <Activity className="w-3.5 h-3.5 text-teal-accent" />
+             <span className="text-[10px] font-bold text-white uppercase tracking-wider">Confidence Score</span>
+             <span className="text-sm font-mono font-black text-teal-accent ml-2">{(severityNum * 100).toFixed(0)}%</span>
           </div>
         </div>
 
@@ -226,7 +216,11 @@ const EventInspector = ({ log }: { log: any | null }) => {
                   <h4 className="text-xs font-heading font-bold text-white uppercase tracking-wider">Automated Analysis</h4>
                 </div>
                 <p className="text-[13px] text-text-muted leading-relaxed font-heading">
-                  SentinelAI processed this {log.layer} event at {timestamp}. The pattern suggests a standard technical telemetry pulse. Cross-correlation with existing threat feeds shows no active malicious association.
+                  SentinelAI processed this {log.layer} event at {timestamp}. {
+                    log.event_type === 'STRESS_INGEST' 
+                      ? "This event is part of a high-throughput performance validation cycle. Pattern analysis indicates normal telemetry volume."
+                      : `The heuristic engine detected a ${log.event_type} signature. Analysis performed by ${log.layer === 'network' ? 'NetFlow' : 'EDR'} modules suggests a baseline synchronization pulse.`
+                  } Cross-correlation with existing threat feeds shows no active malicious association at this node.
                 </p>
               </div>
 
@@ -308,7 +302,7 @@ const EventInspector = ({ log }: { log: any | null }) => {
 };
 
 export const Detection = () => {
-  const { rawLogs, settings } = useStore();
+  const { rawLogs, settings, backendStats } = useStore();
   const [activeTab, setActiveTab] = useState<'network' | 'endpoint' | 'application'>('network');
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [liveFocus, setLiveFocus] = useState(true);
@@ -338,16 +332,23 @@ export const Detection = () => {
         <div className="flex items-center gap-6">
            <div className="flex items-center gap-4 bg-black/40 px-5 py-2.5 rounded-full border border-border-subtle backdrop-blur-md shadow-2xl">
             <div className="flex items-center gap-3">
-              <div className="relative">
-                <div className="w-2.5 h-2.5 rounded-full bg-teal-accent" />
-                <div className="absolute inset-0 w-2.5 h-2.5 rounded-full bg-teal-accent animate-ping opacity-75" />
+              <div className={`relative ${backendStats ? '' : 'opacity-30'}`}>
+                <div className={`w-2.5 h-2.5 rounded-full ${backendStats ? 'bg-teal-accent animate-pulse' : 'bg-red-500'}`} />
+                {backendStats && <div className="absolute inset-0 w-2.5 h-2.5 rounded-full bg-teal-accent animate-ping opacity-75" />}
               </div>
-              <span className="text-[10px] font-mono text-teal-accent font-bold uppercase tracking-[0.2em]">Data Hook Active</span>
+              <span className={`text-[10px] font-mono font-bold uppercase tracking-[0.2em] ${backendStats ? 'text-teal-accent' : 'text-red-500/60'}`}>
+                {backendStats ? 'Pipeline Active' : 'Pipeline Offline'}
+              </span>
             </div>
             <div className="h-5 w-px bg-border-subtle" />
             <div className="text-[10px] font-mono whitespace-nowrap">
-              <span className="text-text-muted mr-2">THROUGHPUT:</span>
-              <span className="text-white font-bold">{Math.floor(Math.random() * 50 + 210)} KB/s</span>
+              <span className="text-text-muted mr-2">EPS:</span>
+              <span className="text-white font-bold">{backendStats?.eps || '0.00'}</span>
+            </div>
+            <div className="h-5 w-px bg-border-subtle" />
+            <div className="text-[10px] font-mono whitespace-nowrap">
+              <span className="text-text-muted mr-2">PROCESSED:</span>
+              <span className="text-white font-bold">{backendStats?.processed_events || '0'}</span>
             </div>
           </div>
         </div>

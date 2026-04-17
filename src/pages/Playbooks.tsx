@@ -10,28 +10,6 @@ import { useStore } from '../store';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 
-const RAW_PLAYBOOK_STEPS = {
-  brute_force: [
-    { id: 'c1', phase: 'CONTAIN', action: 'Block source IP range at firewall', command: 'iptables -A INPUT -s {src_ip} -j DROP' },
-    { id: 'c2', phase: 'CONTAIN', action: 'Force password reset', command: 'ad-tool --reset-password --user {target}' },
-    { id: 'c3', phase: 'CONTAIN', action: 'Enable MFA lockout', command: 'mfa-service --lock --entity {target}' },
-    { id: 'e1', phase: 'ERADICATE', action: 'Audit successful logins', command: 'grep "Accepted" /var/log/auth.log | grep {src_ip}' },
-    { id: 'e2', phase: 'ERADICATE', action: 'Revoke active sessions', command: 'session-mgr --kill-all --user {target}' },
-    { id: 'r1', phase: 'RECOVER', action: 'Restore account access', command: 'ad-tool --enable-account --user {target}' },
-  ],
-  c2_beacon: [
-    { id: 'c1', phase: 'CONTAIN', action: 'Isolate infected endpoint', command: 'quarantine-host --id {target}' },
-    { id: 'c2', phase: 'CONTAIN', action: 'Block destination C2 domain', command: 'dns-sinkhole --domain {indicator}' },
-    { id: 'e1', phase: 'ERADICATE', action: 'Identify malicious PID', command: 'ps aux | grep "suspicious_proc"' },
-    { id: 'e2', phase: 'ERADICATE', action: 'Kill malicious process', command: 'kill -9 {pid}' },
-    { id: 'r1', phase: 'RECOVER', action: 'Submit IOCs to ThreatIntel', command: 'intel-cli --upload-ioc {indicator}' },
-  ],
-  general: [
-    { id: 'c1', phase: 'CONTAIN', action: 'Isolate system', command: 'net-isolate {target}' },
-    { id: 'e1', phase: 'ERADICATE', action: 'Audit system logs', command: 'journalctl -u sentinel-agent' },
-    { id: 'r1', phase: 'RECOVER', action: 'Compile report', command: 'generate-report --incident {id}' },
-  ]
-};
 
 const Terminal = ({ logs }: { logs: string[] }) => (
   <div className="bg-[#050505] rounded-xl border border-border-subtle p-4 font-mono text-xs overflow-hidden h-64 flex flex-col shadow-inner">
@@ -83,7 +61,7 @@ const FlowNode = ({ step, status, isActive }: { step: any, status: 'pending' | '
 );
 
 export const Playbooks = () => {
-  const { incidents, activePlaybookId, setActivePlaybookId, resolveIncident, escalateIncident } = useStore();
+  const { incidents, activePlaybookId, setActivePlaybookId, resolveIncident, escalateIncident, activePlaybookSteps } = useStore();
   const [executionState, setExecutionState] = useState<'IDLE' | 'RUNNING' | 'HALTED' | 'COMPLETED'>('IDLE');
   const [activeStepIndex, setActiveStepIndex] = useState(-1);
   const [logs, setLogs] = useState<string[]>([]);
@@ -101,10 +79,7 @@ export const Playbooks = () => {
     incidents.find(i => i.id === activePlaybookId) || null
   , [incidents, activePlaybookId]);
 
-  const playbookSteps = useMemo(() => {
-    if (!selectedIncident) return [];
-    return RAW_PLAYBOOK_STEPS[selectedIncident.type as keyof typeof RAW_PLAYBOOK_STEPS] || RAW_PLAYBOOK_STEPS.general;
-  }, [selectedIncident]);
+  const playbookSteps = useMemo(() => activePlaybookSteps || [], [activePlaybookSteps]);
 
   useEffect(() => {
     if (executionState === 'RUNNING' && activeStepIndex < playbookSteps.length) {
