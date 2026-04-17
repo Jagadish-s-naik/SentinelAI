@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../store';
-import { X, Target, ChevronRight, ShieldAlert } from 'lucide-react';
+import { X } from 'lucide-react';
 
 // ── MITRE ATT&CK Full Matrix Data ─────────────────────────────────────────────
 const TACTICS = [

@@ -4,8 +4,8 @@ import { useStore } from '../store';
 import type { SecurityEvent } from '../types';
 import { format, formatDistanceToNow } from 'date-fns';
 import {
-  Search, X, Brain, AlertTriangle, ChevronRight, Network,
-  ShieldCheck, Clock, Copy, RotateCcw, Check, Activity, Target, BookOpen
+  Search, X, AlertTriangle, Network,
+  ShieldCheck, Clock, Copy, Check, Activity, BookOpen
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { showToast } from '../components/Layout';
@@ -90,7 +90,7 @@ function IncidentCard({ inc, isSelected, onClick }: { inc: SecurityEvent; isSele
 
 // ── Right Panel: Detail View ──────────────────────────────────────────────────
 function IncidentDetail({ inc, onClose }: { inc: SecurityEvent; onClose: () => void }) {
-  const { resolveIncident, escalateIncident, setAutoRemediate } = useStore();
+  const { resolveIncident, escalateIncident } = useStore();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'explanation' | 'forensic' | 'history'>('explanation');
   const [copied, setCopied] = useState(false);

@@ -8,19 +8,34 @@ from datetime import datetime
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
-from backend.ingestion.async_ingester import AsyncSentinelIngester
-from backend.models.engine import DetectionEngine
-from backend.simulate.scenario_replay import SentinelSimulator
-from backend.playbooks.ai_generator import PlaybookGenerator
+from ingestion.async_ingester import AsyncSentinelIngester
+from models.engine import DetectionEngine
+from simulate.scenario_replay import SentinelSimulator
+from playbooks.ai_generator import PlaybookGenerator
 
 load_dotenv()
 
 app = FastAPI(title="SentinelAI Intelligence API", version="2.0")
 
-# CORS for React frontend
+@app.get("/")
+async def health_check():
+    """Cloud Health Check (Requirement 9: Reliability)"""
+    return {
+        "status": "active",
+        "system": "SentinelAI-Core",
+        "timestamp": datetime.now().isoformat(),
+        "metrics": {
+            "processed": pipeline_metrics["total_processed"],
+            "uptime": str(datetime.now() - pipeline_metrics["start_time"])
+        }
+    }
+
+# Dynamic CORS for Production
+frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3006")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[frontend_url, "http://localhost:3006", "*"] if os.getenv("DEBUG") else [frontend_url, "http://localhost:3006"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -249,4 +264,5 @@ async def generate_playbook(incident_id: str):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)

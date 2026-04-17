@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Eye, Cpu, ShieldAlert, Database, Check, Trash2, Download, RefreshCcw, Activity, Zap, Server, Bell } from 'lucide-react';
+import { Eye, Cpu, ShieldAlert, Database, Trash2, Download, RefreshCcw, Activity, Zap, Server } from 'lucide-react';
 import { useStore } from '../store';
 import { motion, AnimatePresence } from 'framer-motion';
 import { showToast } from '../components/Layout';
@@ -276,7 +276,7 @@ export const Settings = () => {
               <h3 className="font-semibold text-sm mb-3" style={{ color: '#111827' }}>Pipeline Stress Test</h3>
               <p className="text-xs mb-4" style={{ color: '#9CA3AF' }}>Inject 20 randomized events across all layers simultaneously to validate throughput under load.</p>
               <button onClick={() => {
-                Array.from({ length: 5 }).forEach((_, i) => setTimeout(() => spawnManualIncident?.('brute_force'), i * 200));
+                Array.from({ length: 5 }).forEach((_, i) => setTimeout(() => spawnManualIncident?.('brute_force' as any), i * 200));
                 showToast({ type: 'warning', title: 'Stress Test Running', desc: 'Injecting 20 events across all layers.' });
               }} className="btn-primary text-xs">
                 ⚡ START STRESS TEST

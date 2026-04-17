@@ -11,7 +11,6 @@ import {
   Search,
   Pause,
   Play,
-  ChevronRight,
   X,
   CheckCircle2,
   AlertTriangle,

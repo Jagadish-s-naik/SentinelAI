@@ -88,7 +88,7 @@ export const Dashboard = () => {
               <p className="text-xs mt-1" style={{ color: '#9CA3AF' }}>Pipeline is monitoring...</p>
             </div>
           ) : (
-            <div className="divide-y" style={{ divideColor: '#F3F4F6' }}>
+            <div className="divide-y divide-gray-100">
               {incidents.slice(0, 8).map((inc, idx) => (
                 <motion.button
                   key={inc.id}

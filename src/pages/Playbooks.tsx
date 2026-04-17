@@ -1,8 +1,8 @@
 import { useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useStore } from '../store';
 import type { SecurityEvent } from '../types';
-import { BookOpen, Play, Check, AlertTriangle, Terminal, Loader2, ChevronRight, Clock } from 'lucide-react';
+import { BookOpen, Play, Check, AlertTriangle, Terminal, Loader2, ChevronRight } from 'lucide-react';
 import { showToast } from '../components/Layout';
 
 // ── Step types ─────────────────────────────────────────────────────────────────

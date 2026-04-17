@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Network, User, FileCode, Server, Share2, Activity, ZoomIn, ZoomOut, RefreshCcw } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Network, User, FileCode, Server, RefreshCcw, ZoomIn, ZoomOut } from 'lucide-react';
 
 interface Node {
   id: string;
@@ -32,7 +32,8 @@ const ForensicGraph: React.FC<ForensicGraphProps> = ({ entityId, depth = 2 }) =>
     const fetchGraph = async () => {
       setLoading(true);
       try {
-        const response = await fetch(`http://localhost:8001/graph/${encodeURIComponent(entityId)}?depth=${depth}`);
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001';
+        const response = await fetch(`${API_URL}/graph/${encodeURIComponent(entityId)}?depth=${depth}`);
         const result = await response.json();
         
         // Simple circular layout for nodes

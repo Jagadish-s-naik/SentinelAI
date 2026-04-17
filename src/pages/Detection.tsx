@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../store';
 import type { RawLog } from '../types';
 import { format } from 'date-fns';
-import { Activity, Cpu, Zap, Network, Monitor, Globe, ChevronRight, Circle } from 'lucide-react';
+import { Activity, Cpu, Network, Monitor, Globe, Circle } from 'lucide-react';
 
 // ── Sparkline SVG ──────────────────────────────────────────────────────────────
 function Sparkline({ data, color = '#E53935' }: { data: number[]; color?: string }) {
@@ -149,7 +149,7 @@ export const Detection = () => {
                 <p className="text-xs">No events on this layer</p>
               </div>
             ) : (
-              filteredLogs.map((log, i) => (
+              filteredLogs.map((log: RawLog) => (
                 <button
                   key={log.id}
                   onClick={() => setSelectedLog(log)}

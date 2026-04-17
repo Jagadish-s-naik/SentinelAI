@@ -2,7 +2,7 @@ import asyncio
 import os
 import time
 from typing import Callable, Coroutine
-from backend.ingestion.normalizer import SentinelNormalizer
+from ingestion.normalizer import SentinelNormalizer
 
 class AsyncSentinelIngester:
     """

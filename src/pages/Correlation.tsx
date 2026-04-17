@@ -1,8 +1,6 @@
 import { useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../store';
-import { GitMerge, ArrowRight, Circle, ChevronRight } from 'lucide-react';
-import { format, formatDistanceToNow } from 'date-fns';
+import { GitMerge, ArrowRight, ChevronRight } from 'lucide-react';
 
 // ── Correlation Flow Diagram ───────────────────────────────────────────────────
 function FlowDiagram() {
@@ -68,7 +66,7 @@ function EscalationMatrix() {
       <div className="px-5 py-4 border-b" style={{ borderColor: '#E5E7EB' }}>
         <h2 className="font-semibold text-sm" style={{ color: '#111827' }}>Logic Escalation Matrix</h2>
       </div>
-      <div className="divide-y" style={{ divideColor: '#F3F4F6' }}>
+      <div className="divide-y divide-gray-100">
         {levels.map(l => (
           <div key={l.id} className="px-5 py-4 flex items-center gap-4">
             <div className="w-10 h-10 rounded-lg flex items-center justify-center font-black text-sm shrink-0" style={{ background: '#FFF1F0', color: '#E53935' }}>
@@ -135,7 +133,7 @@ export const Correlation = () => {
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y" style={{ divideColor: '#F9FAFB' }}>
+            <tbody className="divide-y divide-gray-50">
               {analyzerFeed.map(row => (
                 <tr
                   key={row.id}

@@ -1,5 +1,5 @@
 export type LayerType = 'network' | 'endpoint' | 'application';
-export type IncidentType = 'brute_force' | 'c2_beacon' | 'lateral_movement' | 'exfiltration';
+export type IncidentType = 'brute_force' | 'c2_beacon' | 'lateral_movement' | 'exfiltration' | 'ransomware' | 'c2' | 'exfil' | 'ddos';
 export type SeverityLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 
 export interface ShapFeature {
@@ -37,6 +37,8 @@ export interface RawLog {
   layer: LayerType;
   raw: string;
   normalized: object;
+  event_type?: string;
+  severity?: SeverityLevel;
 }
 
 export interface SystemSettings {

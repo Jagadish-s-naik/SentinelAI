@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { RawLog, SecurityEvent, SystemSettings } from './types';
+import type { RawLog, SecurityEvent, SystemSettings, IncidentType } from './types';
 import { supabase } from './supabase';
 
 interface AppState {
@@ -26,7 +26,7 @@ interface AppState {
   bulkEscalateIncidents: (ids: string[]) => Promise<void>;
   updateRemediation: (id: string, action: string) => Promise<void>;
   setActivePlaybookId: (id: string | null) => void;
-  spawnManualIncident: (type: 'ransomware' | 'c2' | 'exfil' | 'ddos') => Promise<void>;
+  spawnManualIncident: (type: IncidentType) => Promise<void>;
   fetchPlaybook: (incidentId: string) => Promise<void>;
   triggerSimulation: (scenarioId: string) => Promise<void>;
   spawnCorrelationSignals: () => Promise<void>;
@@ -80,7 +80,8 @@ export const useStore = create<AppState>((set, get) => ({
       // Backend incidents always take priority (in-memory, no DB dependency)
       let backendIncidents: SecurityEvent[] = [];
       try {
-        const res = await fetch('http://localhost:8001/incidents?limit=200');
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001';
+        const res = await fetch(`${API_URL}/incidents?limit=200`);
         const data = await res.json();
         backendIncidents = data.incidents || [];
       } catch (e) {
@@ -287,13 +288,13 @@ export const useStore = create<AppState>((set, get) => ({
         exfil: 'admin_fp',
         ddos: 'dataset_seed'
     };
-    const bid = scenarioMap[type];
+    const bid = (scenarioMap as any)[type] || 'brute_force';
     await get().triggerSimulation(bid);
   },
 
   triggerSimulation: async (scenarioId) => {
     try {
-        await fetch(`http://localhost:8001/simulate/${scenarioId}`, { method: 'POST' });
+        await fetch(`${import.meta.env.VITE_API_URL}/simulate/${scenarioId}`, { method: 'POST' });
         console.log(`[SIM] Triggered ${scenarioId}`);
     } catch (e) {
         console.error('Simulation trigger failed:', e);
@@ -328,7 +329,7 @@ export const useStore = create<AppState>((set, get) => ({
         layer: 'network',
         event_type: 'CONNECTION_ATTP',
         severity: 'MEDIUM',
-        raw_data: { src_port: 443, proto: 'TCP' },
+        raw: JSON.stringify({ src_port: 443, proto: 'TCP' }),
         normalized: { src_ip: testIp, dest_ip: '45.18.29.102', action: 'PORT_SCAN' }
       },
       {
@@ -336,7 +337,7 @@ export const useStore = create<AppState>((set, get) => ({
         layer: 'endpoint',
         event_type: 'PROC_EXEC',
         severity: 'HIGH',
-        raw_data: { binary: 'powershell.exe', args: '-enc ...' },
+        raw: JSON.stringify({ binary: 'powershell.exe', args: '-enc ...' }),
         normalized: { user: 'admin', src_ip: testIp, action: 'FILELESS_SHELL' }
       },
       {
@@ -344,7 +345,7 @@ export const useStore = create<AppState>((set, get) => ({
         layer: 'application',
         event_type: 'API_ANOMALY',
         severity: 'CRITICAL',
-        raw_data: { endpoint: '/v1/auth', method: 'POST' },
+        raw: JSON.stringify({ endpoint: '/v1/auth', method: 'POST' }),
         normalized: { src_ip: testIp, action: 'CREDENTIAL_STUFFING', target: 'Sentinel-Vault' }
       }
     ];
