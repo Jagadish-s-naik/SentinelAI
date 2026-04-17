@@ -2,7 +2,6 @@ import os
 from typing import List, Dict, Any
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
-from langchain.chains import LLMChain
 
 class PlaybookGenerator:
     """
@@ -33,9 +32,13 @@ class PlaybookGenerator:
                     "Provide steps for: 1. Containment, 2. Eradication, 3. Recovery.\n"
                     "Return as JSON with keys 'containment', 'eradication', 'recovery'."
                 )
-                chain = LLMChain(llm=self.llm, prompt=prompt)
-                response = await chain.arun(type=incident['type'], src_ip=incident['src_ip'], severity=incident['severity'])
-                # In real scenario, parse JSON from response
+                chain = prompt | self.llm
+                response = await chain.ainvoke({
+                    "type": incident['type'], 
+                    "src_ip": incident['src_ip'], 
+                    "severity": incident['severity']
+                })
+                # In real scenario, parse JSON from response.content
                 return self._fallback_template(incident) # Mocking the parse for demo
             except Exception as e:
                 print(f"[PLAYBOOK] LLM Error: {e}")
