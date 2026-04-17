@@ -47,5 +47,9 @@ export interface SystemSettings {
   correlationWindowMin: number;
   alertThreshold: number;
   falsePositiveSensitivity: 'Low' | 'Medium' | 'High';
+  businessHours: {
+    start: string; // HH:mm
+    end: string;   // HH:mm
+  };
   autoEscalation: boolean;
 }

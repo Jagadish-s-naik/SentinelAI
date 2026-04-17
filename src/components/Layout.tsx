@@ -1,4 +1,4 @@
-import { Outlet, NavLink } from 'react-router-dom';
+import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { 
   ShieldAlert, 
   Activity, 
@@ -13,13 +13,21 @@ import {
   ActivitySquare,
   Clock,
   Play,
-  Pause
+  Pause,
+  ChevronRight,
+  Info
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useStore } from '../store';
+import { motion, AnimatePresence } from 'framer-motion';
+import { format } from 'date-fns';
 
 const Layout = () => {
-  const { incidents, isPaused, pauseSimulation } = useStore();
+  const { incidents, isPaused, pauseSimulation, searchResults, setSearchQuery: setStoreSearchQuery } = useStore();
+  const navigate = useNavigate();
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
   const criticalCount = incidents.filter(i => i.severity === 'CRITICAL').length;
   
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -85,13 +93,101 @@ const Layout = () => {
       <div className="flex flex-col flex-1 overflow-hidden">
         {/* Topbar */}
         <header className="h-16 bg-card border-b border-border-subtle flex items-center justify-between px-6 shrink-0">
-          <div className="flex items-center w-96 relative">
-            <SearchIcon className="w-4 h-4 text-text-muted absolute left-3" />
+          <div className="flex items-center w-96 relative group">
+            <SearchIcon className="w-4 h-4 text-text-muted absolute left-3 z-10" />
             <input 
               type="text" 
               placeholder="Query threat database..." 
-              className="w-full bg-secondary-card text-sm text-text-primary placeholder-text-muted rounded-md pl-10 pr-4 py-2 border border-transparent focus:border-teal-accent focus:outline-none transition-colors"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setStoreSearchQuery(e.target.value);
+              }}
+              onFocus={() => setIsSearchFocused(true)}
+              className="w-full bg-secondary-card text-sm text-text-primary placeholder-text-muted rounded-md pl-10 pr-4 py-2 border border-transparent focus:border-teal-accent focus:outline-none transition-colors relative z-10"
             />
+            
+            {/* Spotlight Search Results Dropdown */}
+            <AnimatePresence>
+              {isSearchFocused && searchQuery && (
+                <>
+                  <div className="fixed inset-0 z-20" onClick={() => setIsSearchFocused(false)} />
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    className="absolute top-full left-0 mt-2 w-full bg-card border border-border-subtle rounded-lg shadow-2xl z-30 overflow-hidden max-h-[400px] flex flex-col"
+                  >
+                    <div className="p-3 bg-secondary-card/50 border-b border-border-subtle text-[10px] font-black uppercase tracking-widest text-text-muted">
+                        Intelligence Insights
+                    </div>
+                    
+                    <div className="overflow-y-auto custom-scrollbar">
+                        {/* Incidents Section */}
+                        {searchResults.incidents.length > 0 && (
+                            <div className="p-2">
+                                <span className="px-2 py-1 text-[9px] font-bold text-teal-accent/70 uppercase">Correlated Events</span>
+                                {searchResults.incidents.map(inc => (
+                                    <button 
+                                        key={inc.id}
+                                        onClick={() => {
+                                            navigate(`/incidents?id=${inc.id}`);
+                                            setIsSearchFocused(false);
+                                            setSearchQuery('');
+                                        }}
+                                        className="w-full text-left p-2 hover:bg-teal-accent/10 rounded group transition-colors flex items-center justify-between"
+                                    >
+                                        <div className="flex flex-col">
+                                            <span className="text-xs font-bold text-white group-hover:text-teal-accent">{inc.type.replace('_', ' ')}</span>
+                                            <span className="text-[10px] text-text-muted font-mono">{inc.src_ip} • {inc.severity}</span>
+                                        </div>
+                                        <ChevronRight className="w-3 h-3 text-text-muted" />
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Techniques Section */}
+                        {searchResults.techniques.length > 0 && (
+                            <div className="p-2 border-t border-border-subtle/50">
+                                <span className="px-2 py-1 text-[9px] font-bold text-orange-warning/70 uppercase">MITRE Techniques</span>
+                                {searchResults.techniques.map(tech => (
+                                    <button 
+                                        key={tech.id}
+                                        onClick={() => {
+                                            navigate(`/mitre?id=${tech.id}`);
+                                            setIsSearchFocused(false);
+                                            setSearchQuery('');
+                                        }}
+                                        className="w-full text-left p-2 hover:bg-orange-warning/10 rounded group transition-colors flex items-center justify-between"
+                                    >
+                                        <div className="flex flex-col">
+                                            <span className="text-xs font-bold text-white group-hover:text-orange-warning">{tech.name}</span>
+                                            <span className="text-[10px] text-text-muted font-mono">{tech.id}</span>
+                                        </div>
+                                        <div className="p-1 bg-secondary-card rounded border border-border-subtle group-hover:border-orange-warning/50">
+                                            <MapIcon className="w-3 h-3 text-text-muted group-hover:text-orange-warning" />
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
+                        {searchResults.incidents.length === 0 && searchResults.techniques.length === 0 && (
+                            <div className="p-8 text-center text-text-muted">
+                                <Info className="w-8 h-8 opacity-20 mx-auto mb-2" />
+                                <p className="text-xs font-mono">No matching telemetry found in local index.</p>
+                            </div>
+                        )}
+                    </div>
+                    
+                    <div className="p-3 bg-secondary-card border-t border-border-subtle text-center">
+                        <span className="text-[9px] text-text-muted uppercase tracking-tighter">Press <kbd className="bg-background border px-1.5 rounded">Enter</kbd> for deep database query</span>
+                    </div>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
           </div>
           
           <div className="flex items-center space-x-6">
@@ -116,12 +212,88 @@ const Layout = () => {
               {isPaused ? 'RESUME FEED' : 'PAUSE FEED'}
             </button>
 
-            <button className="relative text-text-muted hover:text-text-primary transition-colors">
-              <Bell className="w-5 h-5" />
-              {criticalCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-alert rounded-full animate-pulse-slow"></span>
-              )}
-            </button>
+            <div className="relative">
+              <button 
+                onClick={() => setShowNotifications(!showNotifications)}
+                className={`relative transition-colors ${showNotifications ? 'text-teal-accent' : 'text-text-muted hover:text-text-primary'}`}
+              >
+                <Bell className="w-5 h-5" />
+                {criticalCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-alert rounded-full animate-pulse-slow shadow-[0_0_8px_rgba(239,68,68,0.5)]"></span>
+                )}
+              </button>
+
+              <AnimatePresence>
+                {showNotifications && (
+                  <>
+                    <div 
+                      className="fixed inset-0 z-40" 
+                      onClick={() => setShowNotifications(false)}
+                    />
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      className="absolute right-0 mt-4 w-96 bg-card border border-border-subtle rounded-lg shadow-2xl z-50 overflow-hidden"
+                    >
+                      <div className="p-4 border-b border-border-subtle flex justify-between items-center bg-secondary-card/50">
+                        <h3 className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted">Direct Intelligence Feed</h3>
+                        <span className="text-[10px] font-mono text-teal-accent bg-teal-accent/10 px-2 py-0.5 rounded">
+                          {incidents.length} TOTAL_EVENTS
+                        </span>
+                      </div>
+                      
+                      <div className="max-h-[400px] overflow-y-auto custom-scrollbar">
+                        {incidents.length === 0 ? (
+                          <div className="p-8 text-center">
+                            <Info className="w-8 h-8 text-text-muted opacity-20 mx-auto mb-3" />
+                            <p className="text-xs text-text-muted font-mono tracking-tight">No critical activity detected in current session.</p>
+                          </div>
+                        ) : (
+                          incidents.slice(0, 5).map((incident) => (
+                            <button
+                              key={incident.id}
+                              onClick={() => {
+                                navigate(`/incidents?id=${incident.id}`);
+                                setShowNotifications(false);
+                              }}
+                              className="w-full text-left p-4 hover:bg-secondary-card/50 border-b border-white/5 transition-colors group"
+                            >
+                              <div className="flex justify-between items-start mb-1">
+                                <span className={`text-[10px] font-bold font-mono ${
+                                  incident.severity === 'CRITICAL' ? 'text-red-alert' : 
+                                  incident.severity === 'HIGH' ? 'text-orange-warning' : 'text-blue-accent'
+                                }`}>
+                                  {incident.severity}
+                                </span>
+                                <span className="text-[9px] text-text-muted font-mono">
+                                  {format(new Date(incident.timestamp), 'HH:mm:ss')}
+                                </span>
+                              </div>
+                              <p className="text-xs font-semibold text-white group-hover:text-teal-accent transition-colors line-clamp-1 uppercase">{incident.type.replace('_', ' ')}</p>
+                              <div className="mt-2 flex items-center justify-between">
+                                <span className="text-[9px] text-text-muted uppercase tracking-wider">{incident.type}</span>
+                                <ChevronRight className="w-3 h-3 text-text-muted group-hover:text-teal-accent transform group-hover:translate-x-1 transition-all" />
+                              </div>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                      
+                      <button 
+                        onClick={() => {
+                          navigate('/incidents');
+                          setShowNotifications(false);
+                        }}
+                        className="w-full p-3 bg-secondary-card text-[10px] font-bold uppercase tracking-tighter text-teal-accent border-t border-border-subtle hover:bg-teal-accent/10 transition-colors"
+                      >
+                        Launch Incident Response Workbench
+                      </button>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
             <div className="w-8 h-8 rounded border border-teal-accent/30 bg-secondary-card flex items-center justify-center overflow-hidden">
               <span className="text-teal-accent text-xs font-bold">A1</span>
             </div>

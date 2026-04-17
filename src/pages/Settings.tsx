@@ -1,10 +1,31 @@
-import { useState } from 'react';
-import { Settings as SettingsIcon, Server, Database, ShieldCheck, Bell, Eye, Key, Download, Trash2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Settings as SettingsIcon, Server, Database, ShieldCheck, Bell, Eye, Key, Download, Trash2, Check, RefreshCcw, Activity, Zap, Cpu, Clock } from 'lucide-react';
 import { useStore } from '../store';
+import { motion } from 'framer-motion';
 
 export const Settings = () => {
   const [activeTab, setActiveTab] = useState<'general' | 'engine' | 'api' | 'threats'>('general');
   const { settings, updateSettings, clearIncidents, clearLogs, spawnManualIncident, incidents, rawLogs } = useStore();
+  const [acting, setActing] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('tab') as any;
+    if (tab && ['general', 'engine', 'api', 'threats'].includes(tab)) {
+      setActiveTab(tab);
+    }
+  }, []);
+
+  const handleAction = async (actionId: string, fn: () => void) => {
+    setActing(actionId);
+    await fn();
+    setTimeout(() => {
+      setActing(null);
+      setSuccess(actionId);
+      setTimeout(() => setSuccess(null), 3000);
+    }, 600);
+  };
 
   const toggleModel = (model: keyof typeof settings.models) => {
     updateSettings({
@@ -208,6 +229,38 @@ export const Settings = () => {
                       </div>
                     </div>
 
+                    <div className="h-px bg-border-subtle my-2" />
+
+                    <div className="space-y-4">
+                      <h3 className="text-sm font-bold text-white uppercase tracking-wider opacity-60 flex items-center">
+                        <Clock className="w-4 h-4 mr-2" /> SOC Operational Schedule
+                      </h3>
+                      <p className="text-[10px] text-text-muted italic">Used for context-aware False Positive flagging of administrative and high-privilege activities.</p>
+                      
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-[9px] font-bold text-text-muted uppercase mb-1.5">Shift Start (UTC)</label>
+                          <input 
+                            type="time" 
+                            value={settings.businessHours?.start || '09:00'}
+                            onChange={(e) => updateSettings({ businessHours: { ...settings.businessHours, start: e.target.value } })}
+                            className="w-full bg-background border border-border-subtle text-white p-2 rounded text-xs font-mono focus:border-teal-accent"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[9px] font-bold text-text-muted uppercase mb-1.5">Shift End (UTC)</label>
+                          <input 
+                            type="time" 
+                            value={settings.businessHours?.end || '18:00'}
+                            onChange={(e) => updateSettings({ businessHours: { ...settings.businessHours, end: e.target.value } })}
+                            className="w-full bg-background border border-border-subtle text-white p-2 rounded text-xs font-mono focus:border-teal-accent"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="h-px bg-border-subtle my-2" />
+
                     <div className="flex items-center justify-between p-4 bg-background rounded border border-border-subtle">
                       <div>
                         <h3 className="text-white font-bold mb-1">LSTM Neural Network</h3>
@@ -262,45 +315,78 @@ export const Settings = () => {
           {activeTab === 'threats' && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                <div className="bg-orange-warning/10 border border-orange-warning/50 p-6 rounded-lg">
-                 <h2 className="text-orange-warning font-bold font-heading mb-2 text-lg">Simulated Attack Injection</h2>
-                 <p className="text-sm text-text-muted mb-6">
-                   Force the simulation engine to generate specific high-severity scenarios immediately. Useful for testing Playbooks and Correlation diagrams.
-                 </p>
+                 <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <h2 className="text-orange-warning font-bold font-heading text-lg">Simulated Attack Injection</h2>
+                      <p className="text-sm text-text-muted">
+                        Force the simulation engine to generate specific high-severity scenarios immediately.
+                      </p>
+                    </div>
+                    {success && success !== 'burst' && (
+                      <motion.div 
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className="bg-teal-accent/20 text-teal-accent border border-teal-accent/30 px-3 py-1.5 rounded-full text-[10px] font-bold flex items-center"
+                      >
+                        <Check className="w-3 h-3 mr-1.5" /> SIMULATION_INJECTED
+                      </motion.div>
+                    )}
+                 </div>
                  
                  <div className="grid grid-cols-2 gap-4">
-                    <button 
-                      onClick={() => spawnManualIncident('ransomware')}
-                      className="p-4 bg-secondary-card border border-red-alert/30 hover:border-red-alert rounded text-left transition-all hover:scale-[1.02] active:scale-95 group"
-                    >
-                      <h3 className="text-red-alert font-bold text-sm mb-1 group-hover:text-red-alert/80">Oompa Loompa Ransomware</h3>
-                      <p className="text-xs text-text-muted">Injects mass file modification logs and lateral movement spikes.</p>
-                    </button>
-                    <button 
-                      onClick={() => spawnManualIncident('c2')}
-                      className="p-4 bg-secondary-card border border-teal-accent/30 hover:border-teal-accent rounded text-left transition-all hover:scale-[1.02] active:scale-95 group"
-                    >
-                      <h3 className="text-teal-accent font-bold text-sm mb-1 group-hover:text-teal-accent/80">APT C2 Beacon Spike</h3>
-                      <p className="text-xs text-text-muted">Generates steady outward HTTPS traffic to unknown domains.</p>
-                    </button>
-                    <button 
-                      onClick={() => spawnManualIncident('exfil')}
-                      className="p-4 bg-secondary-card border border-blue-accent/30 hover:border-blue-accent rounded text-left transition-all hover:scale-[1.02] active:scale-95 group"
-                    >
-                      <h3 className="text-blue-accent font-bold text-sm mb-1 group-hover:text-blue-accent/80">Insider Data Exfiltration</h3>
-                      <p className="text-xs text-text-muted">Simulates large database queries and external upload flows.</p>
-                    </button>
-                    <button 
-                      onClick={() => spawnManualIncident('ddos')}
-                      className="p-4 bg-secondary-card border border-text-muted/30 hover:border-white rounded text-left transition-all hover:scale-[1.02] active:scale-95 group"
-                    >
-                      <h3 className="text-white font-bold text-sm mb-1">DDoS Layer 7 Attempt</h3>
-                      <p className="text-xs text-text-muted">Floods ingress logs and spikes CPU metrics heavily.</p>
-                    </button>
+                    {[
+                      { id: 'ransomware', name: 'Oompa Loompa Ransomware', desc: 'Injects mass file modification logs and lateral movement spikes.', color: 'red-alert' },
+                      { id: 'c2', name: 'APT C2 Beacon Spike', desc: 'Generates steady outward HTTPS traffic to unknown domains.', color: 'teal-accent' },
+                      { id: 'exfil', name: 'Insider Data Exfiltration', desc: 'Simulates large database queries and external upload flows.', color: 'blue-accent' },
+                      { id: 'brute', name: 'Distributed Brute Force', desc: 'Creates high-frequency login failure noise across multiple services.', color: 'orange-warning' }
+                    ].map(btn => (
+                      <button 
+                        key={btn.id}
+                        disabled={!!acting}
+                        onClick={() => handleAction(btn.id, () => spawnManualIncident(btn.id as any))}
+                        className="p-4 bg-background border border-border-subtle rounded-lg text-left hover:border-text-muted transition-all group flex items-start justify-between"
+                      >
+                        <div>
+                          <h3 className={`text-${btn.color} font-bold text-sm mb-1 group-hover:opacity-80`}>{btn.name}</h3>
+                          <p className="text-xs text-text-muted line-clamp-2">{btn.desc}</p>
+                        </div>
+                        {acting === btn.id ? (
+                          <RefreshCcw className="w-4 h-4 animate-spin text-text-muted" />
+                        ) : success === btn.id ? (
+                          <Check className="w-4 h-4 text-teal-accent" />
+                        ) : null}
+                      </button>
+                    ))}
                  </div>
+               </div>
+
+               <div className="p-6 bg-secondary-card border border-teal-accent/20 rounded-xl relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-4 opacity-10">
+                    <Cpu className="w-16 h-16" />
+                  </div>
+                  <div className="flex items-center justify-between relative z-10">
+                    <div>
+                      <h3 className="text-white font-bold flex items-center gap-2">
+                        <Activity className="w-4 h-4 text-teal-accent" />
+                        High-Throughput Performance Bay
+                      </h3>
+                      <p className="text-xs text-text-muted mt-1">Validate system multi-threading and ingestion stability under extreme load (500+ events/sec).</p>
+                    </div>
+                    <button 
+                       onClick={() => handleAction('burst', () => useStore.getState().runThroughputStressTest())}
+                       disabled={!!acting}
+                       className="px-6 py-3 bg-teal-accent/10 hover:bg-teal-accent/20 border border-teal-accent/50 text-teal-accent text-xs font-black rounded-lg transition-all flex items-center gap-2"
+                    >
+                      {acting === 'burst' ? <RefreshCcw className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                      INITIATE STRESS TEST
+                    </button>
+                  </div>
+                  {success === 'burst' && (
+                    <p className="text-[10px] text-teal-accent mt-3 font-mono animate-pulse">STRESS_TEST_INGESTED: Batch injection of 500+ telemetry events successful.</p>
+                  )}
                </div>
             </div>
           )}
-
         </div>
       </div>
     </div>

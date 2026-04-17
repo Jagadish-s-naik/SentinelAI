@@ -25,6 +25,15 @@ interface AppState {
   updateRemediation: (id: string, action: string) => Promise<void>;
   setActivePlaybookId: (id: string | null) => void;
   spawnManualIncident: (type: 'ransomware' | 'c2' | 'exfil' | 'ddos') => void;
+  spawnCorrelationSignals: () => Promise<void>;
+  runThroughputStressTest: () => Promise<void>;
+  
+  // Search State
+  searchResults: {
+    incidents: SecurityEvent[];
+    techniques: { id: string; name: string }[];
+  };
+  setSearchQuery: (query: string) => void;
   
   // Initializers
   initialize: () => Promise<void>;
@@ -39,6 +48,10 @@ const defaultSettings: SystemSettings = {
   correlationWindowMin: 5,
   alertThreshold: 75,
   falsePositiveSensitivity: 'Medium',
+  businessHours: {
+    start: '09:00',
+    end: '18:00'
+  },
   autoEscalation: false,
 };
 
@@ -49,6 +62,7 @@ export const useStore = create<AppState>((set, get) => ({
   simulationActive: false,
   isPaused: false,
   activePlaybookId: null,
+  searchResults: { incidents: [], techniques: [] },
 
   initialize: async () => {
     // Fetch initial data
@@ -61,7 +75,7 @@ export const useStore = create<AppState>((set, get) => ({
     set({ 
       incidents: incidents || [], 
       rawLogs: logs || [],
-      settings: settings ? (settings as any) : defaultSettings
+      settings: settings ? { ...defaultSettings, ...settings as any } : defaultSettings
     });
 
     // Realtime Subscriptions
@@ -228,6 +242,100 @@ export const useStore = create<AppState>((set, get) => ({
     };
 
     supabase.from('incidents').insert([newIncident]).then(() => {});
+  },
+
+  spawnCorrelationSignals: async () => {
+    const testIp = `192.168.1.${Math.floor(Math.random() * 254) + 1}`;
+    const timestamp = new Date().toISOString();
+
+    const logs: Omit<RawLog, 'id'>[] = [
+      {
+        timestamp,
+        layer: 'network',
+        event_type: 'CONNECTION_ATTP',
+        severity: 'MEDIUM',
+        raw_data: { src_port: 443, proto: 'TCP' },
+        normalized: { src_ip: testIp, dest_ip: '45.18.29.102', action: 'PORT_SCAN' }
+      },
+      {
+        timestamp: new Date(new Date().getTime() + 1000).toISOString(),
+        layer: 'endpoint',
+        event_type: 'PROC_EXEC',
+        severity: 'HIGH',
+        raw_data: { binary: 'powershell.exe', args: '-enc ...' },
+        normalized: { user: 'admin', src_ip: testIp, action: 'FILELESS_SHELL' }
+      },
+      {
+        timestamp: new Date(new Date().getTime() + 2000).toISOString(),
+        layer: 'application',
+        event_type: 'API_ANOMALY',
+        severity: 'CRITICAL',
+        raw_data: { endpoint: '/v1/auth', method: 'POST' },
+        normalized: { src_ip: testIp, action: 'CREDENTIAL_STUFFING', target: 'Sentinel-Vault' }
+      }
+    ];
+
+    await supabase.from('raw_logs').insert(logs);
+  },
+
+  setSearchQuery: (query: string) => {
+    if (!query) {
+      set({ searchResults: { incidents: [], techniques: [] } });
+      return;
+    }
+
+    const { incidents } = get();
+    const q = query.toLowerCase();
+
+    // Mock search for now - could be extended with dedicated indexing
+    const filteredIncidents = incidents.filter(i => 
+      i.id.toLowerCase().includes(q) ||
+      i.title.toLowerCase().includes(q) || 
+      i.src_ip.includes(q) || 
+      i.mitre_tag.toLowerCase().includes(q)
+    );
+
+    // Common MITRE techniques for search - expanded for production
+    const techniques = [
+      { id: 'T1059', name: 'Command and Scripting Interpreter' },
+      { id: 'T1071', name: 'Application Layer Protocol' },
+      { id: 'T1566', name: 'Phishing' },
+      { id: 'T1003', name: 'OS Credential Dumping' },
+      { id: 'T1021', name: 'Remote Services' },
+      { id: 'T1053', name: 'Scheduled Task/Job' },
+      { id: 'T1048', name: 'Exfiltration Over Alternative Protocol' },
+      { id: 'T1078', name: 'Valid Accounts' },
+      { id: 'T1486', name: 'Data Encrypted for Impact' },
+      { id: 'T1134', name: 'Access Token Manipulation' }
+    ].filter(t => t.id.toLowerCase().includes(q) || t.name.toLowerCase().includes(q));
+
+    set({ searchResults: { incidents: filteredIncidents, techniques } });
+  },
+
+  runThroughputStressTest: async () => {
+    // 500 events/sec burst test
+    // We send batches to remain within Supabase limits while simulating high load
+    const batchSize = 50;
+    const intervals = 10; // 0.1s intervals * 10 = 1s total for 500 events
+    
+    for (let i = 0; i < intervals; i++) {
+        const testIp = `172.16.${Math.floor(Math.random() * 254)}.${Math.floor(Math.random() * 254)}`;
+        const logs: Omit<RawLog, 'id'>[] = Array.from({ length: batchSize }).map((_, j) => ({
+            timestamp: new Date().toISOString(),
+            layer: j % 3 === 0 ? 'network' : j % 3 === 1 ? 'endpoint' : 'application',
+            event_type: 'STRESS_INGEST',
+            severity: 'LOW',
+            raw: `STRESS_TEST_EVENT_${i}_${j}`,
+            normalized: { 
+                src_ip: testIp, 
+                action: 'STRESS_BURST',
+                entropy: Math.random()
+            }
+        }));
+
+        await supabase.from('raw_logs').insert(logs);
+        await new Promise(r => setTimeout(r, 100)); // 100ms throttle
+    }
   }
 }));
 

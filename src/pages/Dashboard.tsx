@@ -3,18 +3,20 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Shield, ShieldAlert, AlertTriangle, Crosshair, Link, CheckCircle2 } from 'lucide-react';
 import { useStore } from '../store';
 import { formatDistanceToNow } from 'date-fns';
+import { useNavigate } from 'react-router-dom';
 
 import type { LucideIcon } from 'lucide-react';
 
-const MetricCard = ({ title, value, subtitle, colorClass, borderClass, icon: Icon, delay }: { title: string, value: string | number, subtitle: string, colorClass: string, borderClass: string, icon: LucideIcon, delay: number }) => (
+const MetricCard = ({ title, value, subtitle, colorClass, borderClass, icon: Icon, delay, onClick }: { title: string, value: string | number, subtitle: string, colorClass: string, borderClass: string, icon: LucideIcon, delay: number, onClick?: () => void }) => (
   <motion.div 
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ delay, duration: 0.5 }}
-    className={`bg-secondary-card rounded-lg p-5 border-l-4 ${borderClass} flex items-center justify-between shadow-lg`}
+    onClick={onClick}
+    className={`bg-secondary-card rounded-lg p-5 border-l-4 ${borderClass} flex items-center justify-between shadow-lg ${onClick ? 'cursor-pointer hover:bg-background transition-all active:scale-[0.98]' : ''}`}
   >
     <div>
-      <p className="text-text-muted text-xs font-semibold tracking-wider uppercase mb-1">{title}</p>
+      <p className="text-text-muted text-base font-semibold tracking-wider uppercase mb-1">{title}</p>
       <div className="flex items-baseline space-x-2">
         <h3 className={`text-3xl font-mono font-bold ${colorClass}`}>
           {value}
@@ -30,6 +32,7 @@ const MetricCard = ({ title, value, subtitle, colorClass, borderClass, icon: Ico
 
 export const Dashboard = () => {
   const { incidents } = useStore();
+  const navigate = useNavigate();
   const [fuzzedConfidence, setFuzzedConfidence] = useState(87);
   const [fuzzedChains, setFuzzedChains] = useState(2);
 
@@ -73,6 +76,7 @@ export const Dashboard = () => {
           borderClass="border-red-alert"
           icon={AlertTriangle}
           delay={0.1}
+          onClick={() => navigate('/incidents')}
         />
         <MetricCard 
           title="Critical Alerts"
@@ -82,6 +86,7 @@ export const Dashboard = () => {
           borderClass="border-orange-warning"
           icon={ShieldAlert}
           delay={0.2}
+          onClick={() => navigate('/incidents?filter=Critical')}
         />
         <MetricCard 
           title="Detection Confidence"
@@ -91,6 +96,7 @@ export const Dashboard = () => {
           borderClass="border-teal-accent"
           icon={Crosshair}
           delay={0.3}
+          onClick={() => navigate('/settings?tab=engine')}
         />
         <MetricCard 
           title="Attack Chains Active"
@@ -100,6 +106,7 @@ export const Dashboard = () => {
           borderClass="border-purple-accent"
           icon={Link}
           delay={0.4}
+          onClick={() => navigate('/correlation')}
         />
       </div>
 
@@ -113,27 +120,31 @@ export const Dashboard = () => {
               <span className="w-2 h-2 rounded-full bg-red-alert animate-pulse mr-2"></span>
               Live Incident Feed
             </h2>
-            <button className="text-xs text-teal-accent hover:text-white transition-colors">
+            <button 
+              onClick={() => navigate('/incidents')}
+              className="text-xs text-teal-accent hover:text-white transition-colors border border-teal-accent/20 px-3 py-1 rounded bg-teal-accent/5"
+            >
               View History
             </button>
           </div>
           
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            <AnimatePresence>
+            <AnimatePresence initial={false}>
               {incidents.slice(0, 50).map((inc) => (
                 <motion.div
                   key={inc.id}
                   initial={{ opacity: 0, y: -20, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   layout
-                  className="bg-secondary-card border border-border-subtle rounded p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-teal-accent/50 transition-colors"
+                  onClick={() => navigate(`/incidents?id=${inc.id}`)}
+                  className="bg-secondary-card border border-border-subtle rounded p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-teal-accent/50 cursor-pointer transition-all group active:scale-[0.98]"
                 >
                   <div className="flex items-center space-x-4">
-                    <div className={`px-2 py-1 rounded text-xs font-bold font-mono min-w-[70px] text-center ${getSeverityColor(inc.severity)}`}>
+                    <div className={`px-2 py-1 rounded text-xs font-bold font-mono min-w-[70px] text-center transition-colors ${getSeverityColor(inc.severity)}`}>
                       {inc.severity}
                     </div>
                     <div>
-                      <p className="font-medium text-sm">{inc.explanation}</p>
+                      <p className="font-medium text-sm text-white group-hover:text-teal-accent transition-colors">{inc.explanation}</p>
                       <div className="text-xs text-text-muted mt-1 font-mono flex items-center space-x-2">
                         <span>{inc.mitre_tag}</span>
                         <span>•</span>

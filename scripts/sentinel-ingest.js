@@ -70,11 +70,15 @@ async function handleNewLines(text) {
     }
 
     // 2. Push Raw Log to Supabase
+    let layer = 'endpoint';
+    if (line.includes('IP:')) layer = 'network';
+    if (line.includes('DB_QUERY') || line.includes('CONFIG_CHANGE')) layer = 'application';
+
     const { error: logError } = await supabase.from('raw_logs').insert({
       raw: line,
       source: 'LOCAL_SERVER_01',
       category: line.includes('DATA_EXPORT') ? 'NETWORK' : 'SYSTEM',
-      layer: line.includes('NETWORK') || line.includes('IP:') ? 'network' : 'endpoint',
+      layer,
       normalized
     });
     

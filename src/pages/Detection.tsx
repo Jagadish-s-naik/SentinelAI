@@ -2,13 +2,14 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   CheckCircle2, XCircle, Search, Server, Terminal, Braces, 
-  Activity, Zap, ShieldCheck, ChevronRight, Cpu, Globe, 
-  Shield, Code, List, Clock, Eye, EyeOff, Info, AlertTriangle, 
+  Activity, Zap, ChevronRight, Cpu, Globe, 
+  List, Eye, EyeOff, Info, 
   ExternalLink, BarChart3, Database, Fingerprint
 } from 'lucide-react';
 import { LineChart, Line, ResponsiveContainer } from 'recharts';
 import { useStore } from '../store';
 import { format } from 'date-fns';
+import { useNavigate } from 'react-router-dom';
 
 const ModelStatusCard = ({ name, id, accuracy, date, enabled }: { name: string, id: string, accuracy: number, date: string, enabled: boolean }) => {
   const [latency, setLatency] = useState(Math.random() * 20 + 5);
@@ -124,6 +125,7 @@ const ThreatSparkline = ({ title, type, color }: { title: string, type: string, 
 
 const EventInspector = ({ log }: { log: any | null }) => {
   const [showRaw, setShowRaw] = useState(false);
+  const navigate = useNavigate();
 
   const data = useMemo(() => {
     if (!log) return null;
@@ -167,7 +169,6 @@ const EventInspector = ({ log }: { log: any | null }) => {
           </div>
           <div className="flex flex-col items-end gap-2">
              <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-red-500/10 border border-red-500/20">
-                <AlertTriangle className="w-3 h-3 text-red-400" />
                 <span className="text-[10px] font-bold text-red-400 font-mono">RISK: {severity}</span>
              </div>
              <p className="text-[10px] text-text-muted font-mono uppercase tracking-widest">{timestamp}</p>
@@ -186,7 +187,10 @@ const EventInspector = ({ log }: { log: any | null }) => {
             {showRaw ? <List className="w-3.5 h-3.5" /> : <Braces className="w-3.5 h-3.5" />}
             {showRaw ? 'VIEW_STRUCTURED' : 'VIEW_RAW_SCHEMA'}
           </button>
-          <button className="flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-mono font-bold bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-all">
+          <button 
+            onClick={() => navigate(`/incidents?layer=${log.layer}`)}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-mono font-bold bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-all"
+          >
             <ExternalLink className="w-3.5 h-3.5" /> EXPLORE_XDR
           </button>
         </div>

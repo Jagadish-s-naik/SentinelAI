@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useStore } from '../store';
-import { Shield, Info, AlertTriangle, Activity, Target, X, ChevronRight, ExternalLink } from 'lucide-react';
+import { Shield, Info, AlertTriangle, Activity, Target, X, ChevronRight, ExternalLink, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
@@ -90,6 +90,28 @@ export const MitreMap = () => {
   const [lastIncidentId, setLastIncidentId] = useState<string | null>(null);
   const [pulseNode, setPulseNode] = useState<string | null>(null);
 
+  const exportHeatmap = () => {
+    const data = {
+      timestamp: new Date().toISOString(),
+      stats: stats,
+      heatMap: MITRE_TACTICS.map(t => ({
+        tacticId: t.id,
+        tacticName: t.name,
+        techniques: t.techniques.map(tech => ({
+          id: tech,
+          name: TECHNIQUE_NAMES[tech],
+          hits: hitCounts[tech] || 0
+        }))
+      }))
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `sentinel_mitre_export_${format(new Date(), 'yyyyMMdd_HHmm')}.json`;
+    link.click();
+  };
+
   // Track new incidents for pulsing animation
   useEffect(() => {
     if (incidents.length > 0) {
@@ -158,14 +180,22 @@ export const MitreMap = () => {
       <div className="flex-1 flex flex-col space-y-6 overflow-hidden">
         {/* Header & Stats */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 shrink-0">
-          <div className="lg:col-span-2 bg-card border border-border-subtle rounded-xl p-6 shadow-lg">
-            <h1 className="text-2xl font-heading font-bold text-white mb-2 flex items-center">
-              <Shield className="mr-3 text-blue-accent" /> MITRE ATT&CK Matrix Heatmap
-            </h1>
-            <p className="text-text-muted text-sm max-w-2xl">
-              Live observation coverage mapped to the MITRE ATT&CK framework.
-              Highlights indicate real-time technique usage based on active telemetry.
-            </p>
+          <div className="lg:col-span-2 bg-card border border-border-subtle rounded-xl p-6 shadow-lg flex justify-between items-center">
+            <div>
+              <h1 className="text-2xl font-heading font-bold text-white mb-2 flex items-center">
+                <Shield className="mr-3 text-blue-accent" /> MITRE ATT&CK Matrix Heatmap
+              </h1>
+              <p className="text-text-muted text-sm max-w-xl">
+                Live observation coverage mapped to the MITRE ATT&CK framework.
+                Highlights indicate real-time technique usage based on active telemetry.
+              </p>
+            </div>
+            <button 
+              onClick={exportHeatmap}
+              className="px-4 py-2 bg-blue-accent/10 border border-blue-accent/30 text-blue-accent hover:bg-blue-accent hover:text-white rounded-lg text-xs font-bold transition-all flex items-center gap-2 group shrink-0"
+            >
+              <Download className="w-4 h-4 group-hover:animate-bounce" /> DOWNLOAD_INTEL
+            </button>
           </div>
 
           <div className="bg-card border border-border-subtle rounded-xl p-4 flex justify-between items-center shadow-lg">
