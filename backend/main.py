@@ -69,6 +69,10 @@ class LogEntry(BaseModel):
     raw: str
     layer: str = "network"
 
+class EngineSettings(BaseModel):
+    active_models: List[str]
+    alert_threshold: float
+
 @app.on_event("startup")
 async def startup_event():
     """Requirement 1 & 9: Start background asyncio ingester on startup."""
@@ -194,7 +198,8 @@ async def get_stats():
         "eps": round(eps, 2),
         "last_pulse": pipeline_metrics["last_pulse"],
         "layer_distribution": pipeline_metrics["layer_distribution"],
-        "active_models": ["xgboost", "isolation_forest", "graph_heuristics", "interval_variance"],
+        "active_models": engine.config["active_models"],
+        "alert_threshold": engine.config["alert_threshold"],
         "is_ingester_running": ingester.is_running,
         "auto_remediation": pipeline_metrics["auto_remediation"],
         "mitigated_entities": list(engine.mitigated_entities)
@@ -230,6 +235,11 @@ async def update_protection(enabled: bool):
     if not enabled:
         engine.reset_protections()
     return {"message": f"Auto-remediation set to {enabled}"}
+
+@app.post("/settings/engine")
+async def update_engine_settings(settings: EngineSettings):
+    engine.update_settings(settings.dict())
+    return {"message": "Engine configuration updated successfully", "config": engine.config}
 
 @app.post("/simulate/{scenario_id}")
 async def trigger_simulation(scenario_id: str, background_tasks: BackgroundTasks):

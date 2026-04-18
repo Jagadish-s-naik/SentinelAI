@@ -262,6 +262,15 @@ input[type="range"] { accent-color: #E53935; }
 }
 @keyframes blink { 50% { opacity: 0; } }
 
+/* ── Custom Animations ─────────────────────────────────── */
+@keyframes bounce-slow {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+.animate-bounce-slow {
+  animation: bounce-slow 4s ease-in-out infinite;
+}
+
 /* ── Custom scrollbar for dark sections (terminal) ──────── */
 .terminal-scroll::-webkit-scrollbar { width: 4px; }
 .terminal-scroll::-webkit-scrollbar-track { background: #1a1a1a; }

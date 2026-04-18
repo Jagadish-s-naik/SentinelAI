@@ -57,38 +57,72 @@ export const Landing: React.FC = () => {
           backgroundSize: '24px 24px' 
         }}></div>
 
-        <div className="max-w-7xl mx-auto px-6 relative z-10 text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-          >
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-50 border border-red-100 text-red-600 text-[11px] font-bold tracking-widest uppercase mb-8">
-              <Activity className="w-3 h-3 animate-pulse" />
-              Next-Gen SOC Workbench
-            </div>
-            <h1 className="text-6xl md:text-8xl font-black text-gray-900 tracking-tighter leading-[0.9] mb-8">
-              PREDICT.<br />
-              DETECT.<br />
-              <span className="text-red-600">NEUTRALIZE.</span>
-            </h1>
-            <p className="max-w-2xl mx-auto text-lg text-gray-600 font-medium mb-12">
-              The world's first AI-native forensic workbench designed for modern SOC teams. 
-              Accelerate incident resolution from hours to seconds with automated artifact correlation.
-            </p>
-            <div className="flex flex-col md:flex-row items-center justify-center gap-4">
-              <button 
-                onClick={() => navigate('/dashboard')}
-                className="px-8 py-4 bg-red-600 text-white rounded-xl font-bold text-lg shadow-xl shadow-red-200 hover:bg-red-700 transition-all flex items-center gap-2 group"
-              >
-                Launch Dashboard
-                <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-              </button>
-              <button className="px-8 py-4 bg-white text-gray-900 border border-gray-200 rounded-xl font-bold text-lg hover:border-gray-900 transition-all">
-                View Documentation
-              </button>
-            </div>
-          </motion.div>
+        <div className="max-w-7xl mx-auto px-6 relative z-10">
+          <div className="flex flex-col lg:flex-row items-center gap-16">
+            <motion.div
+              initial={{ opacity: 0, x: -30 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.8 }}
+              className="flex-1 text-left"
+            >
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-50 border border-red-100 text-red-600 text-[11px] font-bold tracking-widest uppercase mb-8">
+                <Activity className="w-3 h-3 animate-pulse" />
+                Next-Gen SOC Workbench
+              </div>
+              <h1 className="text-6xl md:text-7xl lg:text-8xl font-black text-gray-900 tracking-tighter leading-[0.9] mb-8">
+                PREDICT.<br />
+                DETECT.<br />
+                <span className="text-red-600">NEUTRALIZE.</span>
+              </h1>
+              <p className="max-w-xl text-lg text-gray-600 font-medium mb-12">
+                The world's first AI-native forensic workbench designed for modern SOC teams. 
+                Accelerate incident resolution from hours to seconds with automated artifact correlation.
+              </p>
+              <div className="flex flex-col sm:flex-row items-center justify-start gap-4">
+                <button 
+                  onClick={() => navigate('/dashboard')}
+                  className="px-8 py-4 bg-red-600 text-white rounded-xl font-bold text-lg shadow-xl shadow-red-200 hover:bg-red-700 transition-all flex items-center gap-2 group w-full sm:w-auto justify-center"
+                >
+                  Launch Dashboard
+                  <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                </button>
+                <button className="px-8 py-4 bg-white text-gray-900 border border-gray-200 rounded-xl font-bold text-lg hover:border-gray-900 transition-all w-full sm:w-auto justify-center">
+                  View Documentation
+                </button>
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, x: 30 }}
+              animate={{ opacity: 1, scale: 1, x: 0 }}
+              transition={{ duration: 0.8, delay: 0.2 }}
+              className="flex-1 w-full relative"
+            >
+               {/* Decorative Circles */}
+               <div className="absolute -top-12 -right-12 w-64 h-64 bg-red-50 rounded-full blur-3xl opacity-60"></div>
+               <div className="absolute -bottom-12 -left-12 w-48 h-48 bg-gray-100 rounded-full blur-3xl opacity-60"></div>
+
+               <div className="relative z-10 p-2 bg-white border border-gray-100 rounded-3xl shadow-2xl overflow-hidden glass">
+                  <img 
+                    src="/assets/hero-visual.png" 
+                    alt="SentinelAI Intelligence Visualization" 
+                    className="w-full h-full object-cover rounded-2xl"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-tr from-red-600/10 to-transparent pointer-events-none"></div>
+               </div>
+               
+               {/* Floating Badge */}
+               <div className="absolute -bottom-6 -right-6 p-4 bg-white rounded-2xl shadow-xl border border-gray-100 flex items-center gap-4 z-20 animate-bounce-slow">
+                  <div className="w-10 h-10 bg-green-50 rounded-full flex items-center justify-center">
+                    <Zap className="w-5 h-5 text-green-600" />
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Confidence Score</div>
+                    <div className="text-lg font-black text-gray-900">99.8%</div>
+                  </div>
+               </div>
+            </motion.div>
+          </div>
         </div>
       </section>
 
@@ -159,17 +193,21 @@ export const Landing: React.FC = () => {
             <div className="flex-1 w-full max-w-xl">
               {/* Mockup Frame */}
               <div className="p-1 bg-gray-200 rounded-2xl shadow-2xl">
-                <div className="bg-white rounded-xl overflow-hidden aspect-video border border-gray-100 flex items-center justify-center relative dot-grid">
-                   <div className="absolute inset-x-0 top-0 h-6 bg-gray-50 border-b border-gray-100 flex items-center px-3 gap-1.5">
+                <div className="bg-white rounded-xl overflow-hidden aspect-video border border-gray-100 relative group cursor-crosshair">
+                   <div className="absolute inset-x-0 top-0 h-6 bg-gray-50 border-b border-gray-100 flex items-center px-3 gap-1.5 z-10">
                      <div className="w-2 h-2 rounded-full bg-red-400"></div>
                      <div className="w-2 h-2 rounded-full bg-yellow-400"></div>
                      <div className="w-2 h-2 rounded-full bg-green-400"></div>
+                     <div className="ml-auto flex gap-2">
+                       <div className="w-12 h-1 bg-gray-200 rounded-full"></div>
+                     </div>
                    </div>
-                   <div className="p-8 text-center">
-                      <Lock className="w-12 h-12 text-gray-200 mx-auto mb-4" />
-                      <div className="h-2 w-32 bg-gray-100 rounded-full mx-auto mb-2"></div>
-                      <div className="h-2 w-24 bg-gray-50 rounded-full mx-auto"></div>
-                   </div>
+                   <img 
+                    src="/assets/dashboard-mockup.png" 
+                    alt="SentinelAI Dashboard Mockup"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
+                   />
+                   <div className="absolute inset-0 bg-gradient-to-t from-gray-900/40 to-transparent pointer-events-none"></div>
                 </div>
               </div>
             </div>

@@ -46,10 +46,20 @@ function SettingsRow({ label, desc, children }: { label: string; desc?: string; 
 // ── Settings ──────────────────────────────────────────────────────────────────
 export const Settings = () => {
   const [activeTab, setActiveTab] = useState<'ui' | 'engine' | 'threats' | 'integrations'>('ui');
-  const { settings, updateSettings, clearIncidents, clearLogs, spawnManualIncident, incidents, rawLogs, backendStats, toggleAutoRemediation } = useStore();
-  const [uiToggles, setUiToggles] = useState({ darkTheme: false, compactMode: false, alertSound: false });
-  const [sensitivity, setSensitivity] = useState(75);
   const [attackLoading, setAttackLoading] = useState<string | null>(null);
+  const [uiToggles, setUiToggles] = useState({ darkTheme: false, compactMode: false, alertSound: false });
+  const { 
+    settings, 
+    updateSettings, 
+    clearIncidents, 
+    clearLogs, 
+    spawnManualIncident, 
+    incidents, 
+    rawLogs, 
+    backendStats, 
+    toggleAutoRemediation,
+    exportTelemetry 
+  } = useStore();
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -142,7 +152,10 @@ export const Settings = () => {
             <div className="k-card p-6 shadow-card">
               <SectionHeader title="Telemetry & Data" icon={Activity} />
               <div className="flex flex-wrap gap-3 mb-4">
-                <button onClick={() => showToast({ type: 'success', title: 'Telemetry Exported', desc: `${incidents.length} incidents exported.` })} className="btn-ghost text-xs">
+                <button onClick={() => {
+                  exportTelemetry();
+                  showToast({ type: 'success', title: 'Telemetry Exported', desc: `${incidents.length} incidents exported to JSON.` });
+                }} className="btn-ghost text-xs">
                   <Download className="w-3.5 h-3.5" /> Export Telemetry
                 </button>
                 <button onClick={() => { clearLogs(); showToast({ type: 'info', title: 'Logs cleared', desc: 'Raw log buffer flushed.' }); }} className="btn-ghost text-xs">
@@ -192,9 +205,9 @@ export const Settings = () => {
               <SectionHeader title="Heuristic Sensitivity" icon={Zap} />
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm" style={{ color: '#374151' }}>Detection Threshold</span>
-                <span className="font-mono font-bold text-sm" style={{ color: '#E53935' }}>{sensitivity}%</span>
+                <span className="font-mono font-bold text-sm" style={{ color: '#E53935' }}>{settings.alertThreshold}%</span>
               </div>
-              <input type="range" min="10" max="100" value={sensitivity} onChange={e => setSensitivity(Number(e.target.value))}
+              <input type="range" min="10" max="100" value={settings.alertThreshold} onChange={e => updateSettings({ alertThreshold: Number(e.target.value) })}
                 className="w-full" />
               <div className="flex justify-between text-[10px] mt-1" style={{ color: '#9CA3AF' }}>
                 <span>Low (more false positives)</span>

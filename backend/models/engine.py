@@ -101,6 +101,20 @@ class DetectionEngine:
         # GRAPH: Relationship tracker for blast radius
         self.tracker = RelationshipTracker()
 
+        # CONFIG: Dynamic engine control (Requirement 3)
+        self.config = {
+            "active_models": ["isolation_forest", "xgboost", "lstm"],
+            "alert_threshold": 75.0
+        }
+
+    def update_settings(self, settings: Dict[str, Any]):
+        """Update active models and confidence threshold on the fly."""
+        if "active_models" in settings:
+            self.config["active_models"] = settings["active_models"]
+        if "alert_threshold" in settings:
+            self.config["alert_threshold"] = float(settings["alert_threshold"])
+        print(f"[ENGINE] Configuration updated: {self.config}")
+
     async def analyze_event(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Main entry point for event analysis across all 4 ML models."""
         
@@ -129,24 +143,32 @@ class DetectionEngine:
         detections = []
         
         # 1. Brute Force Detection (T1110)
-        bf_alert = self.detect_brute_force(event)
-        if bf_alert: detections.append(bf_alert)
+        if "xgboost" in self.config["active_models"]:
+            bf_alert = self.detect_brute_force(event)
+            if bf_alert: detections.append(bf_alert)
         
         # 2. Lateral Movement Detection (T1021)
-        lm_alert = self.detect_lateral_movement(event)
-        if lm_alert: detections.append(lm_alert)
+        if "xgboost" in self.config["active_models"]:
+            lm_alert = self.detect_lateral_movement(event)
+            if lm_alert: detections.append(lm_alert)
         
         # 3. Data Exfiltration Detection (T1048)
-        ex_alert = self.detect_exfiltration(event)
-        if ex_alert: detections.append(ex_alert)
+        if "isolation_forest" in self.config["active_models"]:
+            ex_alert = self.detect_exfiltration(event)
+            if ex_alert: detections.append(ex_alert)
         
         # 4. C2 Beaconing Detection (T1071)
-        c2_alert = self.detect_c2_beaconing(event)
-        if c2_alert: detections.append(c2_alert)
+        if "lstm" in self.config["active_models"]:
+            c2_alert = self.detect_c2_beaconing(event)
+            if c2_alert: detections.append(c2_alert)
         
         if detections:
-            # Return the highest severity/confidence alert
-            return sorted(detections, key=lambda x: x['confidence'], reverse=True)[0]
+            # Return the highest confidence alert ONLY if it exceeds the threshold
+            best_alert = sorted(detections, key=lambda x: x['confidence'], reverse=True)[0]
+            if best_alert['confidence'] >= self.config["alert_threshold"]:
+                return best_alert
+            else:
+                print(f"[ENGINE] Alert '{best_alert['type']}' suppressed (Confidence {best_alert['confidence']}% < threshold {self.config['alert_threshold']}%)")
         
         return None
 

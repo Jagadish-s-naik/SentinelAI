@@ -45,6 +45,7 @@ interface AppState {
   fetchStats: () => Promise<void>;
   toggleAutoRemediation: (enabled: boolean) => Promise<void>;
   injectManualLog: (raw: string, layer?: string) => Promise<void>;
+  exportTelemetry: () => void;
 }
 
 const defaultSettings: SystemSettings = {
@@ -213,7 +214,31 @@ export const useStore = create<AppState>((set, get) => ({
   updateSettings: async (newSettings) => {
     const { settings } = get();
     const updated = { ...settings, ...newSettings };
+    
+    // 1. Persist to Supabase (User preferences)
     await supabase.from('system_settings').update(updated).eq('id', 1);
+    
+    // 2. Sync with Backend Engine (Requirement 3: Dynamic Posting)
+    try {
+        const activeModels = [];
+        if (updated.models.isolationForest) activeModels.push('isolation_forest');
+        if (updated.models.xgboost) activeModels.push('xgboost');
+        if (updated.models.lstm) activeModels.push('lstm');
+
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001';
+        await fetch(`${API_URL}/settings/engine`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                active_models: activeModels,
+                alert_threshold: updated.alertThreshold
+            })
+        });
+    } catch (e) {
+        console.error('[STORE] Failed to sync engine settings:', e);
+    }
+
+    set({ settings: updated });
   },
   
   toggleSimulation: () => set((state) => ({
@@ -282,13 +307,18 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   spawnManualIncident: async (type) => {
-    const scenarioMap = {
-        ransomware: 'brute_force', // Mapping to simulator IDs
+    // Mapping from UI types to simulator scenario_ids
+    const scenarioMap: Record<string, string> = {
+        ransomware: 'brute_force',
         c2: 'c2_beacon',
         exfil: 'admin_fp',
-        ddos: 'dataset_seed'
+        ddos: 'dataset_seed',
+        brute_force: 'brute_force',
+        c2_beacon: 'c2_beacon',
+        lateral_movement: 'dataset_seed', // Scanning patterns
+        exfiltration: 'admin_fp'          // Large data transfer
     };
-    const bid = (scenarioMap as any)[type] || 'brute_force';
+    const bid = scenarioMap[type] || 'brute_force';
     await get().triggerSimulation(bid);
   },
 
@@ -448,6 +478,29 @@ export const useStore = create<AppState>((set, get) => ({
     } catch (e) {
       console.error('[STORE] injectManualLog failed:', e);
     }
+  },
+
+  exportTelemetry: () => {
+    const { incidents, rawLogs } = get();
+    const payload = {
+        exportDate: new Date().toISOString(),
+        metadata: {
+            system: "SentinelAI-Core",
+            version: "2.0.0-PROD"
+        },
+        incidents: incidents.map(i => ({ ...i, shap_features: undefined })), // Prune SHAP for export
+        rawLogs: rawLogs.slice(0, 100)
+    };
+
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `sentinel_forensic_export_${new Date().getTime()}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   },
 }));
 
