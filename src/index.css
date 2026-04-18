@@ -214,7 +214,22 @@
 
 /* ── Ticker ────────────────────────────────────────────── */
 .ticker-wrap { overflow: hidden; white-space: nowrap; }
-.ticker-inner { display: inline-block; animation: ticker 25s linear infinite; }
+.ticker-inner { 
+  display: inline-block; 
+  animation: ticker 40s linear infinite; 
+}
+@keyframes ticker {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+/* ── Glassmorphism ────────────────────────────────────── */
+.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
 
 /* ── Connection line ───────────────────────────────────── */
 .connection-line {

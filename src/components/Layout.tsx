@@ -22,6 +22,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useStore } from '../store';
 import { format } from 'date-fns';
 import { AnimatePresence, motion } from 'framer-motion';
+import { startSimulationEngine } from '../lib/SimulationEngine';
 
 // ─── Toast System ─────────────────────────────────────────────────────────────
 type ToastType = 'success' | 'error' | 'warning' | 'info';
@@ -76,13 +77,13 @@ function ToastContainer() {
 
 // ─── Nav Items ────────────────────────────────────────────────────────────────
 const navItems = [
-  { name: 'Dashboard',        path: '/dashboard',   icon: LayoutDashboard },
-  { name: 'Incidents',        path: '/incidents',   icon: ShieldAlert },
-  { name: 'Detection Engine', path: '/detection',   icon: ScanSearch },
-  { name: 'Correlation',      path: '/correlation', icon: GitMerge },
-  { name: 'Playbooks',        path: '/playbooks',   icon: BookOpen },
-  { name: 'MITRE Map',        path: '/mitre',       icon: MapIcon },
-  { name: 'Settings',         path: '/settings',    icon: SettingsIcon },
+  { name: 'Dashboard',        path: '/dashboard',             icon: LayoutDashboard },
+  { name: 'Incidents',        path: '/dashboard/incidents',   icon: ShieldAlert },
+  { name: 'Detection Engine', path: '/dashboard/detection',   icon: ScanSearch },
+  { name: 'Correlation',      path: '/dashboard/correlation', icon: GitMerge },
+  { name: 'Playbooks',        path: '/dashboard/playbooks',   icon: BookOpen },
+  { name: 'MITRE Map',        path: '/dashboard/mitre',       icon: MapIcon },
+  { name: 'Settings',         path: '/dashboard/settings',    icon: SettingsIcon },
 ];
 
 // ─── Layout ───────────────────────────────────────────────────────────────────
@@ -98,6 +99,11 @@ const Layout = () => {
   const [ingress, setIngress] = useState(1.5);
   const [latency, setLatency] = useState(25);
   const [activeNodes] = useState(12);
+
+  useEffect(() => {
+    // Start generating simulated security events when entering the dashboard area
+    startSimulationEngine();
+  }, []);
 
   const criticalCount = incidents.filter(i => i.severity === 'CRITICAL').length;
 

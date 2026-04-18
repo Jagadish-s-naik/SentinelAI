@@ -9,6 +9,7 @@ import { Correlation } from './pages/Correlation';
 import { Playbooks } from './pages/Playbooks';
 import { MitreMap } from './pages/MitreMap';
 import { Settings } from './pages/Settings';
+import { Landing } from './pages/Landing';
 
 import { useStore } from './store';
 
@@ -18,17 +19,14 @@ function App() {
   useEffect(() => {
     // Initialize the Supabase store
     initialize();
-    
-    // Start generating simulated security events on mount
-    startSimulationEngine();
   }, [initialize]);
 
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<Layout />}>
-          <Route index element={<Navigate to="/dashboard" replace />} />
-          <Route path="dashboard" element={<Dashboard />} />
+        <Route path="/" element={<Landing />} />
+        <Route path="/dashboard" element={<Layout />}>
+          <Route index element={<Dashboard />} />
           <Route path="incidents" element={<Incidents />} />
           <Route path="detection" element={<Detection />} />
           <Route path="correlation" element={<Correlation />} />
